@@ -1,84 +1,30 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, onMounted } from 'vue';
 import TaskItem from './TaskItem.vue';
+import { useTaskStore } from '../store/taskStore';
 
-interface Task {
-    id: number;
-    title: string;
-    completed: boolean;
-    category?: string;
-}
-
-const tasks = ref<Task[]>([]);
+// Состояние
+const taskStore = useTaskStore();
 const newTaskText = ref('');
 const newTaskCategory = ref('');
-const filter = ref<'all' | 'active' | 'completed'>('all');
-const nextId = ref(1);
-const categories = ref<string[]>(['Работа', 'Дом', 'Учеба', 'Спорт', 'Другое']);
+const categories = ref<string[]>(['Работа', 'Личное', 'Учеба', 'Покупки']);
 
+// Загрузка из localStorage при монтировании компонента
 onMounted(() => {
-    const savedTasks = localStorage.getItem('tasks');
-    if (savedTasks) {
-        tasks.value = JSON.parse(savedTasks);
-        nextId.value = Math.max(...tasks.value.map(task => task.id), 0) + 1;
-    }
+  taskStore.loadFromLocalStorage();
 });
 
-watch(tasks, (newTasks) => {
-    localStorage.setItem('tasks', JSON.stringify(newTasks));
-}, { deep: true });
-
-const filteredTasks = computed(() => {
-    switch (filter.value) {
-        case 'active':
-            return tasks.value.filter(task => !task.completed);
-        case 'completed':
-            return tasks.value.filter(task => task.completed);
-        default:
-            return tasks.value;
-    }
-});
-
+// Методы
 function addTask() {
-    if (newTaskText.value.trim()) {
-        tasks.value.push({
-            id: nextId.value++,
-            title: newTaskText.value.trim(),
-            completed: false,
-            category: newTaskCategory.value,
-        });
-        newTaskText.value = '';
-    }
-}
-
-function toggleTask(id: number) {
-    const task = tasks.value.find(task => task.id === id);
-    if (task) {
-        task.completed = !task.completed;
-    }
-}
-
-function deleteTask(id: number) {
-    const index = tasks.value.findIndex(task => task.id === id);
-    if (index !== -1) {
-        tasks.value.splice(index, 1);
-    }
-}
-
-function editTask(data: {id: number, title: string}) {
-    const task = tasks.value.find(task => task.id === data.id);
-    if (task) {
-        task.title = data.title;
-    }
-}
-
-function clearCompleted() {
-    tasks.value = tasks.value.filter(task => !task.completed);
+  if (newTaskText.value.trim()) {
+    taskStore.addTask(newTaskText.value.trim(), newTaskCategory.value);
+    newTaskText.value = '';
+  }
 }
 </script>
 
 <template>
-    <div class="task-list-container">
+  <div class="task-list-container">
     <h1>Менеджер задач</h1>
     
     <!-- Добавление новой задачи -->
@@ -101,26 +47,26 @@ function clearCompleted() {
     <!-- Фильтры -->
     <div class="filters">
       <button 
-        :class="{ active: filter === 'all' }" 
-        @click="filter = 'all'"
+        :class="{ active: taskStore.filter === 'all' }" 
+        @click="taskStore.setFilter('all')"
       >
         Все
       </button>
       <button 
-        :class="{ active: filter === 'active' }" 
-        @click="filter = 'active'"
+        :class="{ active: taskStore.filter === 'active' }" 
+        @click="taskStore.setFilter('active')"
       >
         Активные
       </button>
       <button 
-        :class="{ active: filter === 'completed' }" 
-        @click="filter = 'completed'"
+        :class="{ active: taskStore.filter === 'completed' }" 
+        @click="taskStore.setFilter('completed')"
       >
         Выполненные
       </button>
       <button 
-        v-if="tasks.some(task => task.completed)" 
-        @click="clearCompleted"
+        v-if="taskStore.tasks.some(task => task.completed)" 
+        @click="taskStore.clearCompleted()"
         class="clear-btn"
       >
         Очистить выполненные
@@ -129,27 +75,27 @@ function clearCompleted() {
     
     <!-- Список задач -->
     <div class="tasks-container">
-      <p v-if="filteredTasks.length === 0" class="empty-message">
+      <p v-if="taskStore.filteredTasks.length === 0" class="empty-message">
         Нет задач для отображения
       </p>
       <TaskItem
-        v-for="task in filteredTasks"
+        v-for="task in taskStore.filteredTasks"
         :key="task.id"
         :id="task.id"
         :title="task.title"
         :completed="task.completed"
         :category="task.category"
-        @toggle="toggleTask"
-        @delete="deleteTask"
-        @edit="editTask"
+        @toggle="taskStore.toggleTask"
+        @delete="taskStore.deleteTask"
+        @edit="(data) => taskStore.editTask(data.id, data.title)"
       />
     </div>
     
     <!-- Счетчик задач -->
-    <div class="task-count" v-if="tasks.length > 0">
-      Всего: {{ tasks.length }} | 
-      Активных: {{ tasks.filter(t => !t.completed).length }} | 
-      Выполненных: {{ tasks.filter(t => t.completed).length }}
+    <div class="task-count" v-if="taskStore.tasks.length > 0">
+      Всего: {{ taskStore.tasks.length }} | 
+      Активных: {{ taskStore.tasks.filter(t => !t.completed).length }} | 
+      Выполненных: {{ taskStore.tasks.filter(t => t.completed).length }}
     </div>
   </div>
 </template>

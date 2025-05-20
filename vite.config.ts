@@ -1,12 +1,13 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
-
+import vueDevTools from 'vite-plugin-vue-devtools'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
-    checker({ typescript: true })
+    checker({ typescript: true }),
+    vueDevTools()
   ],
   server: {
     port: 3000,
