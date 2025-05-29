@@ -4,7 +4,7 @@ import ThreeBackground from './components/ThreeBackground.vue';
 
 <template>
   <div class="app">
-    <ThreeBackground />
+    
     <header>
       <nav>
         <router-link to="/" class="nav-link">Задачи</router-link>
@@ -13,6 +13,7 @@ import ThreeBackground from './components/ThreeBackground.vue';
     </header>
 
     <main>
+      <ThreeBackground />
       <router-view></router-view>
     </main>
 

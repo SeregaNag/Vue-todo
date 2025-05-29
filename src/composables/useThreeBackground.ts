@@ -8,47 +8,108 @@ export function useThreeBackground() {
     let camera: THREE.PerspectiveCamera
     let renderer: THREE.WebGLRenderer
     let animationId: number;
+    let particles: THREE.Mesh[] = [];
 
     const initThree = () => {
         if (!canvasRef.value) return;
 
         scene = new THREE.Scene();
 
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 50;
+        const parent = canvasRef.value.parentElement;
+        const width = parent?.clientWidth || window.innerWidth;
+        const height = parent?.clientHeight || window.innerHeight;
 
         renderer = new THREE.WebGLRenderer({
             canvas: canvasRef.value,
             alpha: true,
             antialias: true,
         });
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(width, height);
         renderer.setClearColor(0x000000, 0);
 
-        const geometry = new THREE.SphereGeometry(1, 8, 8);
-        const material = new THREE.MeshBasicMaterial({
-            color: 0x00ff88,
-            transparent: true,
-            opacity: 0.7,
-        });
+        camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        camera.position.z = 50;
 
-        const testMesh = new THREE.Mesh(geometry, material);
-        testMesh.position.set(0, 0, 0);
-        scene.add(testMesh);
+        const createParticles = () => {
+            for (let i = 0; i < 30; i++) {
+                // Случайная геометрия
+                const geometries = [
+                    new THREE.BoxGeometry(1, 1, 1),
+                    new THREE.SphereGeometry(0.5, 8, 8),
+                    new THREE.ConeGeometry(0.5, 1, 8)
+                ]
+                
+                const geometry = geometries[Math.floor(Math.random() * geometries.length)]
+                
+                // Случайный цвет
+                const material = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color().setHSL(Math.random(), 0.7, 0.6),
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.7
+                })
+                
+                const mesh = new THREE.Mesh(geometry, material)
+                
+                // На центральную позицию
+                mesh.position.set(0, 0, 0)
+                
+                mesh.userData = {
+                    velocity: new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.5,
+                        (Math.random() - 0.5) * 0.5,
+                        (Math.random() - 0.5) * 0.3
+                    ),
+                    rotationSpeed: {
+                        x: Math.random() * 0.02,
+                        y: Math.random() * 0.02
+                    }
+                }
+                
+                scene.add(mesh)
+                particles.push(mesh)
+            }
+        }
+
+        createParticles();
     }
 
     const animate = () => {
         animationId = requestAnimationFrame(animate);
 
+        if(particles.length > 0) {
+            particles.forEach(particle => {
+                particle.position.add(particle.userData.velocity)
+                
+                // СТАТИЧНЫЕ границы (без вычислений)
+                if (particle.position.x > 40 || particle.position.x < -40) {
+                    particle.userData.velocity.x *= -1
+                }
+                if (particle.position.y > 25 || particle.position.y < -25) {
+                    particle.userData.velocity.y *= -1
+                }
+                if (particle.position.z > 10 || particle.position.z < -10) {
+                    particle.userData.velocity.z *= -1
+                }
+                
+                particle.rotation.x += particle.userData.rotationSpeed.x
+                particle.rotation.y += particle.userData.rotationSpeed.y
+            });
+        }
+
         renderer.render(scene, camera);
     }
 
     const handleResize = () => {
-        if (!renderer || !camera) return
+        if (!renderer || !camera || !canvasRef.value) return
         
-        camera.aspect = window.innerWidth / window.innerHeight
+        const parent = canvasRef.value.parentElement;
+        const width = parent?.clientWidth || window.innerWidth;
+        const height = parent?.clientHeight || window.innerHeight;
+        
+        camera.aspect = width / height
         camera.updateProjectionMatrix()
-        renderer.setSize(window.innerWidth, window.innerHeight)
+        renderer.setSize(width, height)
     }
 
     onMounted(() => {
