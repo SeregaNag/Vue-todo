@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import ThreeBackground from './components/ThreeBackground.vue';
 </script>
 
 <template>
   <div class="app">
+    <ThreeBackground />
     <header>
       <nav>
         <router-link to="/" class="nav-link">Задачи</router-link>
