@@ -1,5 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import * as THREE from 'three';
+import { useTaskStore } from '../store/taskStore';
+import { watch, computed } from 'vue';
 
 export function useThreeBackground() {
     const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -9,6 +11,36 @@ export function useThreeBackground() {
     let renderer: THREE.WebGLRenderer
     let animationId: number;
     let particles: THREE.Mesh[] = [];
+    const taskStore = useTaskStore();
+
+    const taskStats = computed(() => {
+        const total = taskStore.tasks.length;
+        const completed = taskStore.tasks.filter(task => task.completed).length;
+        const progress = total > 0 ? completed / total : 0;
+        return {
+            total,
+            completed,
+            progress
+        }
+    })
+
+    const updateParticles = () => {
+        const { progress } = taskStats.value;
+
+        let hue = 240;
+        if (progress === 1) hue = 60;
+        else if(progress > 0.7) hue = 120;
+        else if(progress < 0.3) hue = 0;
+
+        particles.forEach(particle => {
+            if(particle.material instanceof THREE.MeshBasicMaterial) {
+                particle.material.color.setHSL(hue / 360, 0.7, 0.6);
+            }
+        })
+    }
+
+    watch(taskStats, updateParticles, { deep: true });
+    
 
     const initThree = () => {
         if (!canvasRef.value) return;
@@ -31,7 +63,7 @@ export function useThreeBackground() {
         camera.position.z = 50;
 
         const createParticles = () => {
-            for (let i = 0; i < 30; i++) {
+            for (let i = 0; i < 50; i++) {
                 // Случайная геометрия
                 const geometries = [
                     new THREE.BoxGeometry(1, 1, 1),
@@ -72,6 +104,7 @@ export function useThreeBackground() {
         }
 
         createParticles();
+        updateParticles();
     }
 
     const animate = () => {
@@ -82,10 +115,10 @@ export function useThreeBackground() {
                 particle.position.add(particle.userData.velocity)
                 
                 // СТАТИЧНЫЕ границы (без вычислений)
-                if (particle.position.x > 40 || particle.position.x < -40) {
+                if (particle.position.x > 70 || particle.position.x < -70) {
                     particle.userData.velocity.x *= -1
                 }
-                if (particle.position.y > 25 || particle.position.y < -25) {
+                if (particle.position.y > 32 || particle.position.y < -30) {
                     particle.userData.velocity.y *= -1
                 }
                 if (particle.position.z > 10 || particle.position.z < -10) {
