@@ -92,7 +92,7 @@ export function useThreeBackground() {
         if (newTasks.length > 0 && taskParticles.length !== newTasks.length) {
             createTaskParticles()
         }
-    }, { immediate: true })
+    })
 
     const addSingleTaskParticle = (task: any, index: number) => {
         // ДОБАВЛЯЕМ проверку
