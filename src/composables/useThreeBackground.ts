@@ -2,6 +2,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import * as THREE from 'three';
 import { useTaskStore } from '../store/taskStore';
 import { watch, computed } from 'vue';
+import type { Task } from '../types/task';
 
 export function useThreeBackground() {
     const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -10,7 +11,8 @@ export function useThreeBackground() {
     let camera: THREE.PerspectiveCamera
     let renderer: THREE.WebGLRenderer
     let animationId: number;
-    let particles: THREE.Mesh[] = [];
+    let backgroundParticles: THREE.Mesh[] = [] // маленькие фоновые
+    let taskParticles: THREE.Mesh[] = []       // большие для задач
     const taskStore = useTaskStore();
 
     const taskStats = computed(() => {
@@ -32,16 +34,186 @@ export function useThreeBackground() {
         else if(progress > 0.7) hue = 120;
         else if(progress < 0.3) hue = 0;
 
-        particles.forEach(particle => {
+        // Обновляем ТОЛЬКО фоновые частицы
+        backgroundParticles.forEach(particle => {
             if(particle.material instanceof THREE.MeshBasicMaterial) {
                 particle.material.color.setHSL(hue / 360, 0.7, 0.6);
             }
         })
     }
 
-    watch(taskStats, updateParticles, { deep: true });
+    watch(taskStats, () => {
+        updateParticles()
+    }, { deep: true })
     
+    watch(() => taskStore.tasks.length, (newLength, oldLength) => {
+        if (newLength > oldLength) {
+            const newTask = taskStore.tasks[taskStore.tasks.length - 1];
+            addSingleTaskParticle(newTask, taskStore.tasks.length - 1)
+        } else if (newLength < oldLength) {
+            createTaskParticles()
+        }
+    })
 
+    watch(() => taskStore.tasks, (newTasks) => {
+        // ИЗМЕНЯЕМ условие: если количество частиц НЕ равно количеству задач
+        if (newTasks.length > 0 && taskParticles.length !== newTasks.length) {
+            createTaskParticles()
+        }
+    }, { immediate: true })
+
+    const addSingleTaskParticle = (task: any, index: number) => {
+        const geometry = new THREE.BoxGeometry(2.5, 2.5, 2.5)
+        
+        const material = new THREE.MeshBasicMaterial({
+            color: task.completed ? 0x00ff00 : 0xff6600,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.8
+        })
+        
+        const mesh = new THREE.Mesh(geometry, material)
+        
+        // Появляется ТОЛЬКО в боковых областях (слева или справа от todo окна)
+        const isLeftSide = Math.random() < 0.5
+        let startX, startY
+        
+        if (isLeftSide) {
+            // Левая боковая область
+            startX = -50 - Math.random() * 20  // от -50 до -70
+            startY = (Math.random() - 0.5) * 40 // по всей высоте
+        } else {
+            // Правая боковая область  
+            startX = 50 + Math.random() * 20   // от +50 до +70
+            startY = (Math.random() - 0.5) * 40 // по всей высоте
+        }
+        
+        mesh.position.set(startX, startY, (Math.random() - 0.5) * 10)
+        
+        // Обычная случайная скорость
+        mesh.userData = {
+            taskId: task.id,
+            velocity: new THREE.Vector3(
+                (Math.random() - 0.5) * 0.2,
+                (Math.random() - 0.5) * 0.2,
+                (Math.random() - 0.5) * 0.1
+            ),
+            rotationSpeed: {
+                x: Math.random() * 0.015,
+                y: Math.random() * 0.015
+            }
+        }
+        
+        scene.add(mesh)
+        taskParticles.push(mesh)
+    }
+
+    const createBackgroundParticles = () => {
+        for (let i = 0; i < 30; i++) {
+            const geometries = [
+                new THREE.BoxGeometry(0.8, 0.8, 0.8),
+                new THREE.SphereGeometry(0.5, 6, 6),
+                new THREE.ConeGeometry(0.5, 1.0, 6)
+            ]
+            
+            const geometry = geometries[Math.floor(Math.random() * geometries.length)]
+            
+            const material = new THREE.MeshBasicMaterial({
+                color: new THREE.Color().setHSL(240/360, 0.7, 0.6),
+                wireframe: true,
+                transparent: true,
+                opacity: 0.6
+            })
+            
+            const mesh = new THREE.Mesh(geometry, material)
+            
+            // Появляются в боковых областях (как и частицы задач)
+            const isLeftSide = Math.random() < 0.5
+            let startX, startY
+            
+            if (isLeftSide) {
+                // Левая боковая область
+                startX = -40 - Math.random() * 30  // от -40 до -70
+                startY = (Math.random() - 0.5) * 50 // по всей высоте
+            } else {
+                // Правая боковая область  
+                startX = 40 + Math.random() * 30   // от +40 до +70
+                startY = (Math.random() - 0.5) * 50 // по всей высоте
+            }
+            
+            mesh.position.set(startX, startY, (Math.random() - 0.5) * 15)
+            
+            mesh.userData = {
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.2
+                ),
+                rotationSpeed: {
+                    x: Math.random() * 0.01,
+                    y: Math.random() * 0.01
+                }
+            }
+            
+            scene.add(mesh)
+            backgroundParticles.push(mesh)
+        }
+    }
+    
+    const createTaskParticles = () => {
+        // Очищаем старые частицы задач
+        taskParticles.forEach(particle => {
+            scene.remove(particle)
+        })
+        taskParticles = []
+        
+        // Создаём по частице на каждую задачу
+        taskStore.tasks.forEach((task, index) => {  
+            const geometry = new THREE.BoxGeometry(2.5, 2.5, 2.5)
+            
+            const material = new THREE.MeshBasicMaterial({
+                color: task.completed ? 0x00ff00 : 0xff6600,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.8
+            })
+            
+            const mesh = new THREE.Mesh(geometry, material)
+            
+            // ДЕТЕРМИНИРОВАННОЕ позиционирование на основе индекса
+            const isLeftSide = index % 2 === 0  // чётные слева, нечётные справа
+            const verticalOffset = (index * 8) % 40 - 20  // распределяем по высоте
+            
+            let startX, startY
+            
+            if (isLeftSide) {
+                startX = -55 - (index * 3) % 15  // разные X для левой стороны
+                startY = verticalOffset
+            } else {
+                startX = 55 + (index * 3) % 15   // разные X для правой стороны  
+                startY = verticalOffset
+            }
+            
+            mesh.position.set(startX, startY, (index * 2) % 10 - 5)  // разные Z
+            
+            mesh.userData = {
+                taskId: task.id,
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.2,
+                    (Math.random() - 0.5) * 0.2,
+                    (Math.random() - 0.5) * 0.1
+                ),
+                rotationSpeed: {
+                    x: Math.random() * 0.015,
+                    y: Math.random() * 0.015
+                }
+            }
+            
+            scene.add(mesh)
+            taskParticles.push(mesh)
+        })
+    }
+    
     const initThree = () => {
         if (!canvasRef.value) return;
 
@@ -62,73 +234,49 @@ export function useThreeBackground() {
         camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
         camera.position.z = 50;
 
-        const createParticles = () => {
-            for (let i = 0; i < 50; i++) {
-                // Случайная геометрия
-                const geometries = [
-                    new THREE.BoxGeometry(1, 1, 1),
-                    new THREE.SphereGeometry(0.5, 8, 8),
-                    new THREE.ConeGeometry(0.5, 1, 8)
-                ]
-                
-                const geometry = geometries[Math.floor(Math.random() * geometries.length)]
-                
-                // Случайный цвет
-                const material = new THREE.MeshBasicMaterial({
-                    color: new THREE.Color().setHSL(Math.random(), 0.7, 0.6),
-                    wireframe: true,
-                    transparent: true,
-                    opacity: 0.7
-                })
-                
-                const mesh = new THREE.Mesh(geometry, material)
-                
-                // На центральную позицию
-                mesh.position.set(0, 0, 0)
-                
-                mesh.userData = {
-                    velocity: new THREE.Vector3(
-                        (Math.random() - 0.5) * 0.5,
-                        (Math.random() - 0.5) * 0.5,
-                        (Math.random() - 0.5) * 0.3
-                    ),
-                    rotationSpeed: {
-                        x: Math.random() * 0.02,
-                        y: Math.random() * 0.02
-                    }
-                }
-                
-                scene.add(mesh)
-                particles.push(mesh)
-            }
-        }
-
-        createParticles();
-        updateParticles();
+        createBackgroundParticles()
+        updateParticles()
     }
 
     const animate = () => {
         animationId = requestAnimationFrame(animate);
 
-        if(particles.length > 0) {
-            particles.forEach(particle => {
-                particle.position.add(particle.userData.velocity)
-                
-                // СТАТИЧНЫЕ границы (без вычислений)
-                if (particle.position.x > 70 || particle.position.x < -70) {
-                    particle.userData.velocity.x *= -1
-                }
-                if (particle.position.y > 32 || particle.position.y < -30) {
-                    particle.userData.velocity.y *= -1
-                }
-                if (particle.position.z > 10 || particle.position.z < -10) {
-                    particle.userData.velocity.z *= -1
-                }
-                
-                particle.rotation.x += particle.userData.rotationSpeed.x
-                particle.rotation.y += particle.userData.rotationSpeed.y
-            });
-        }
+        // Анимируем фоновые частицы
+        backgroundParticles.forEach(particle => {
+            particle.position.add(particle.userData.velocity)
+            
+            if (particle.position.x > 70 || particle.position.x < -70) {
+                particle.userData.velocity.x *= -1
+            }
+            if (particle.position.y > 32 || particle.position.y < -30) {
+                particle.userData.velocity.y *= -1
+            }
+            if (particle.position.z > 10 || particle.position.z < -10) {
+                particle.userData.velocity.z *= -1
+            }
+            
+            particle.rotation.x += particle.userData.rotationSpeed.x
+            particle.rotation.y += particle.userData.rotationSpeed.y
+        });
+
+        // Анимируем частицы задач
+        taskParticles.forEach(particle => {
+            particle.position.add(particle.userData.velocity)
+            
+            // Те же границы
+            if (particle.position.x > 70 || particle.position.x < -70) {
+                particle.userData.velocity.x *= -1
+            }
+            if (particle.position.y > 32 || particle.position.y < -30) {
+                particle.userData.velocity.y *= -1
+            }
+            if (particle.position.z > 10 || particle.position.z < -10) {
+                particle.userData.velocity.z *= -1
+            }
+            
+            particle.rotation.x += particle.userData.rotationSpeed.x
+            particle.rotation.y += particle.userData.rotationSpeed.y
+        });
 
         renderer.render(scene, camera);
     }
