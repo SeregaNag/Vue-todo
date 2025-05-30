@@ -11,6 +11,26 @@ const newTaskText = ref('');
 const newTaskCategory = ref('');
 const categories = ref<string[]>(['Работа', 'Личное', 'Учеба', 'Покупки']);
 
+const taskListContainerRef = ref<HTMLDivElement>();
+
+const getTaskListBounds = () => {
+  if(!taskListContainerRef.value) return null;
+
+  const rect = taskListContainerRef.value.getBoundingClientRect();
+  return {
+    left: rect.left,
+    right: rect.right,
+    top: rect.top,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  }
+}
+
+defineExpose({
+  getTaskListBounds,
+})
+
 // Загрузка из localStorage при монтировании компонента
 onMounted(() => {
   taskStore.loadFromLocalStorage();
@@ -26,7 +46,7 @@ function addTask() {
 </script>
 
 <template>
-  <div class="task-list-container" :style="{
+  <div ref="taskListContainerRef" class="task-list-container" :style="{
     borderTop: `4px solid ${themes[currentTheme].primary}`,
     boxShadow: `0 2px 10px ${themes[currentTheme].primary}22`
   }">

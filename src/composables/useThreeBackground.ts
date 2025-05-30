@@ -4,10 +4,13 @@ import { useTaskStore } from '../store/taskStore';
 import { watch, computed } from 'vue';
 import type { Task } from '../types/task';
 import { useThemeColors } from './useThemeColors';
+import { useCoordinateConverter } from './useCoordinateConverter';
 
 export function useThreeBackground() {
     const canvasRef = ref<HTMLCanvasElement | null>(null);
     const { currentTheme, themes } = useThemeColors();
+    const { screenToThreeJS } = useCoordinateConverter();
+    let taskListBounds: {left: number, right: number, top: number, bottom: number} | null = null;
 
     let scene: THREE.Scene
     let camera: THREE.PerspectiveCamera
@@ -27,6 +30,58 @@ export function useThreeBackground() {
             progress
         }
     })
+
+    const updateTaskListBounds = (domBounds: DOMRect) => {
+        if (!camera || !renderer) return
+        
+        const canvas = renderer.domElement
+        const canvasRect = canvas.getBoundingClientRect()
+        
+        // Преобразуем координаты TaskList в Three.js координаты
+        const topLeft = screenToThreeJS(
+            domBounds.left - canvasRect.left,
+            domBounds.top - canvasRect.top,
+            canvasRect.width,
+            canvasRect.height,
+            camera
+        )
+        
+        const bottomRight = screenToThreeJS(
+            domBounds.right - canvasRect.left,
+            domBounds.bottom - canvasRect.top,
+            canvasRect.width,
+            canvasRect.height,
+            camera
+        )
+        
+        taskListBounds = {
+            left: topLeft.x,
+            right: bottomRight.x,
+            top: topLeft.y,
+            bottom: bottomRight.y
+        }
+    }
+    
+    const updateTaskListBoundsFromDOM = () => {
+        // Автоматически ищем TaskList в DOM по классу
+        const taskListElement = document.querySelector('.task-list-container') as HTMLElement
+        if (taskListElement) {
+            const rect = taskListElement.getBoundingClientRect()
+            updateTaskListBounds(rect)
+            
+            // ОТЛАДКА: выводим границы в консоль
+            console.log('DOM границы TaskList:', {
+                left: rect.left,
+                right: rect.right,
+                top: rect.top,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height
+            })
+            
+            console.log('Three.js границы TaskList:', taskListBounds)
+        }
+    }
 
     const updateParticles = () => {
         const { progress } = taskStats.value;
@@ -274,6 +329,11 @@ export function useThreeBackground() {
 
         createBackgroundParticles()
         updateParticles()
+        
+        // Автоматически обновляем границы TaskList после инициализации
+        setTimeout(() => {
+            updateTaskListBoundsFromDOM()
+        }, 100)
     }
 
     const animate = () => {
@@ -289,6 +349,7 @@ export function useThreeBackground() {
         backgroundParticles.forEach(particle => {
             particle.position.add(particle.userData.velocity)
             
+            // Отскок от границ экрана
             if (particle.position.x > 70 || particle.position.x < -70) {
                 particle.userData.velocity.x *= -1
             }
@@ -297,6 +358,34 @@ export function useThreeBackground() {
             }
             if (particle.position.z > 10 || particle.position.z < -10) {
                 particle.userData.velocity.z *= -1
+            }
+            
+            // Отскок от области TaskList (если границы определены)
+            if (taskListBounds) {
+                const margin = 2; // отступ для отскока
+                
+                // Проверяем приближение к границам TaskList
+                if (particle.position.x > (taskListBounds.left - margin) && 
+                    particle.position.x < (taskListBounds.right + margin) &&
+                    particle.position.y < (taskListBounds.top + margin) && 
+                    particle.position.y > (taskListBounds.bottom - margin)) {
+                    
+                    // Определяем с какой стороны частица приближается
+                    const centerX = (taskListBounds.left + taskListBounds.right) / 2
+                    const centerY = (taskListBounds.top + taskListBounds.bottom) / 2
+                    
+                    const deltaX = particle.position.x - centerX
+                    const deltaY = particle.position.y - centerY
+                    
+                    // Отскакиваем в направлении от центра TaskList
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                        // Горизонтальный отскок
+                        particle.userData.velocity.x = deltaX > 0 ? Math.abs(particle.userData.velocity.x) : -Math.abs(particle.userData.velocity.x)
+                    } else {
+                        // Вертикальный отскок
+                        particle.userData.velocity.y = deltaY > 0 ? Math.abs(particle.userData.velocity.y) : -Math.abs(particle.userData.velocity.y)
+                    }
+                }
             }
             
             particle.rotation.x += particle.userData.rotationSpeed.x
@@ -307,7 +396,7 @@ export function useThreeBackground() {
         taskParticles.forEach(particle => {
             particle.position.add(particle.userData.velocity)
             
-            // Те же границы
+            // Отскок от границ экрана
             if (particle.position.x > 70 || particle.position.x < -70) {
                 particle.userData.velocity.x *= -1
             }
@@ -316,6 +405,34 @@ export function useThreeBackground() {
             }
             if (particle.position.z > 10 || particle.position.z < -10) {
                 particle.userData.velocity.z *= -1
+            }
+            
+            // Отскок от области TaskList (если границы определены)
+            if (taskListBounds) {
+                const margin = 2; // отступ для отскока
+                
+                // Проверяем приближение к границам TaskList
+                if (particle.position.x > (taskListBounds.left - margin) && 
+                    particle.position.x < (taskListBounds.right + margin) &&
+                    particle.position.y < (taskListBounds.top + margin) && 
+                    particle.position.y > (taskListBounds.bottom - margin)) {
+                    
+                    // Определяем с какой стороны частица приближается
+                    const centerX = (taskListBounds.left + taskListBounds.right) / 2
+                    const centerY = (taskListBounds.top + taskListBounds.bottom) / 2
+                    
+                    const deltaX = particle.position.x - centerX
+                    const deltaY = particle.position.y - centerY
+                    
+                    // Отскакиваем в направлении от центра TaskList
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                        // Горизонтальный отскок
+                        particle.userData.velocity.x = deltaX > 0 ? Math.abs(particle.userData.velocity.x) : -Math.abs(particle.userData.velocity.x)
+                    } else {
+                        // Вертикальный отскок
+                        particle.userData.velocity.y = deltaY > 0 ? Math.abs(particle.userData.velocity.y) : -Math.abs(particle.userData.velocity.y)
+                    }
+                }
             }
             
             particle.rotation.x += particle.userData.rotationSpeed.x
@@ -335,6 +452,11 @@ export function useThreeBackground() {
         camera.aspect = width / height
         camera.updateProjectionMatrix()
         renderer.setSize(width, height)
+        
+        // Обновляем границы TaskList после изменения размера
+        setTimeout(() => {
+            updateTaskListBoundsFromDOM()
+        }, 50)
     }
 
     onMounted(() => {
@@ -357,6 +479,7 @@ export function useThreeBackground() {
         canvasRef,
         initThree,
         currentTheme,
-        themes
+        themes,
+        updateTaskListBounds
     };
 }
