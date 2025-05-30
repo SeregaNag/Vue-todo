@@ -2,9 +2,11 @@
 import { ref, onMounted } from 'vue';
 import TaskItem from './TaskItem.vue';
 import { useTaskStore } from '../store/taskStore';
+import { useThreeBackground } from '../composables/useThreeBackground';
 
 // Состояние
 const taskStore = useTaskStore();
+const { currentTheme, themes } = useThreeBackground();
 const newTaskText = ref('');
 const newTaskCategory = ref('');
 const categories = ref<string[]>(['Работа', 'Личное', 'Учеба', 'Покупки']);
@@ -24,7 +26,10 @@ function addTask() {
 </script>
 
 <template>
-  <div class="task-list-container">
+  <div class="task-list-container" :style="{
+    borderTop: `4px solid ${themes[currentTheme].primary}`,
+    boxShadow: `0 2px 10px ${themes[currentTheme].primary}22`
+  }">
     <h1>Менеджер задач</h1>
     
     <!-- Добавление новой задачи -->
@@ -34,6 +39,7 @@ function addTask() {
         @keyup.enter="addTask"
         placeholder="Добавить новую задачу"
         class="task-input"
+        :style="{ borderColor: themes[currentTheme].primary }"
       />
       <select v-model="newTaskCategory" class="category-select">
         <option value="">Без категории</option>
@@ -41,7 +47,9 @@ function addTask() {
           {{ category }}
         </option>
       </select>
-      <button @click="addTask" class="add-btn">Добавить</button>
+      <button @click="addTask" class="add-btn" :style="{ 
+        backgroundColor: themes[currentTheme].primary 
+      }">Добавить</button>
     </div>
     
     <!-- Фильтры -->
@@ -49,18 +57,21 @@ function addTask() {
       <button 
         :class="{ active: taskStore.filter === 'all' }" 
         @click="taskStore.setFilter('all')"
+        :style="taskStore.filter === 'all' ? { backgroundColor: themes[currentTheme].primary, color: 'white' } : {}"
       >
         Все
       </button>
       <button 
         :class="{ active: taskStore.filter === 'active' }" 
         @click="taskStore.setFilter('active')"
+        :style="taskStore.filter === 'active' ? { backgroundColor: themes[currentTheme].primary, color: 'white' } : {}"
       >
         Активные
       </button>
       <button 
         :class="{ active: taskStore.filter === 'completed' }" 
         @click="taskStore.setFilter('completed')"
+        :style="taskStore.filter === 'completed' ? { backgroundColor: themes[currentTheme].primary, color: 'white' } : {}"
       >
         Выполненные
       </button>

@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import ThreeBackground from './components/ThreeBackground.vue';
+import { useThreeBackground } from './composables/useThreeBackground';
+
+const { currentTheme, themes } = useThreeBackground();
 </script>
 
 <template>
   <div class="app">
     
-    <header>
+    <header :style="{ 
+      backgroundColor: themes[currentTheme].primary,
+      boxShadow: `0 2px 8px ${themes[currentTheme].primary}33`
+    }">
       <nav>
         <router-link to="/" class="nav-link">Задачи</router-link>
         <router-link to="/about" class="nav-link">О проекте</router-link>
@@ -17,21 +23,21 @@ import ThreeBackground from './components/ThreeBackground.vue';
       <router-view></router-view>
     </main>
 
-    <footer>
+    <footer :style="{ backgroundColor: themes[currentTheme].secondary }">
       <p>Vue Task Manager &copy; 2023</p>
     </footer>
   </div>
 </template>
 
-<style >
+<style>
 body {
   font-family: 'Avenir', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
   padding: 0;
-  background-color: #f5f5f5;
   color: #2c3e50;
+  transition: all 0.3s ease; /* ПЛАВНЫЕ ПЕРЕХОДЫ */
 }
 
 .app {
@@ -41,10 +47,9 @@ body {
 }
 
 header {
-  background-color: #42b883;
   color: white;
   padding: 1rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease; /* ПЛАВНЫЕ ПЕРЕХОДЫ */
 }
 
 nav {
@@ -73,13 +78,14 @@ nav {
 main {
   flex-grow: 1;
   padding: 20px;
+  transition: all 0.3s ease; /* ПЛАВНЫЕ ПЕРЕХОДЫ */
 }
 
 footer {
   text-align: center;
   padding: 1rem;
-  background-color: #2c3e50;
   color: white;
   font-size: 0.8rem;
+  transition: all 0.3s ease; /* ПЛАВНЫЕ ПЕРЕХОДЫ */
 }
 </style>

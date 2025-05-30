@@ -3,9 +3,11 @@ import * as THREE from 'three';
 import { useTaskStore } from '../store/taskStore';
 import { watch, computed } from 'vue';
 import type { Task } from '../types/task';
+import { useThemeColors } from './useThemeColors';
 
 export function useThreeBackground() {
     const canvasRef = ref<HTMLCanvasElement | null>(null);
+    const { currentTheme, themes } = useThemeColors();
 
     let scene: THREE.Scene
     let camera: THREE.PerspectiveCamera
@@ -29,18 +31,48 @@ export function useThreeBackground() {
     const updateParticles = () => {
         const { progress } = taskStats.value;
 
-        let hue = 240;
-        if (progress === 1) hue = 60;
-        else if(progress > 0.7) hue = 120;
-        else if(progress < 0.3) hue = 0;
+        // ПЛАВНЫЕ переходы между цветами на основе прогресса
+        let targetHue, targetSaturation, targetLightness;
+        
+        if (progress === 1) {
+            targetHue = 60; targetSaturation = 0.8; targetLightness = 0.7; // Золотой
+        } else if (progress > 0.7) {
+            targetHue = 120; targetSaturation = 0.7; targetLightness = 0.6; // Зелёный
+        } else if (progress < 0.3) {
+            targetHue = 0; targetSaturation = 0.8; targetLightness = 0.6; // Красный
+        } else {
+            targetHue = 240; targetSaturation = 0.7; targetLightness = 0.6; // Синий
+        }
 
-        // Обновляем ТОЛЬКО фоновые частицы
+        // ПЛАВНАЯ анимация к целевому цвету
         backgroundParticles.forEach(particle => {
             if(particle.material instanceof THREE.MeshBasicMaterial) {
-                particle.material.color.setHSL(hue / 360, 0.7, 0.6);
+                // ИСПРАВЛЯЕМ: создаём объект HSL с нужными свойствами
+                const currentColor = { h: 0, s: 0, l: 0 };
+                particle.material.color.getHSL(currentColor);
+                
+                // Плавная интерполяция к целевому цвету (lerp)
+                const newHue = THREE.MathUtils.lerp(currentColor.h, targetHue / 360, 0.05);
+                const newSat = THREE.MathUtils.lerp(currentColor.s, targetSaturation, 0.05);
+                const newLight = THREE.MathUtils.lerp(currentColor.l, targetLightness, 0.05);
+                
+                particle.material.color.setHSL(newHue, newSat, newLight);
             }
         })
     }
+
+    const currentThemeColor = computed(() => {
+        const {progress} = taskStats.value;
+
+        if(progress === 1) return 'gold';
+        else if(progress > 0.7) return 'green';
+        else if(progress < 0.3) return 'red';
+        else return 'blue';
+    })
+
+    watch(currentThemeColor, (newTheme) => {
+        currentTheme.value = newTheme;
+    }, { immediate: true })
 
     watch(taskStats, () => {
         updateParticles()
@@ -63,6 +95,9 @@ export function useThreeBackground() {
     }, { immediate: true })
 
     const addSingleTaskParticle = (task: any, index: number) => {
+        // ДОБАВЛЯЕМ проверку
+        if (!scene) return;
+        
         const geometry = new THREE.BoxGeometry(2.5, 2.5, 2.5)
         
         const material = new THREE.MeshBasicMaterial({
@@ -161,6 +196,9 @@ export function useThreeBackground() {
     }
     
     const createTaskParticles = () => {
+        // ДОБАВЛЯЕМ проверку
+        if (!scene) return;
+        
         // Очищаем старые частицы задач
         taskParticles.forEach(particle => {
             scene.remove(particle)
@@ -241,6 +279,12 @@ export function useThreeBackground() {
     const animate = () => {
         animationId = requestAnimationFrame(animate);
 
+        // ДОБАВЛЯЕМ проверку
+        if (!renderer || !scene || !camera) return;
+
+        // ДОБАВЛЯЕМ плавное обновление цветов каждый кадр
+        updateParticles();
+
         // Анимируем фоновые частицы
         backgroundParticles.forEach(particle => {
             particle.position.add(particle.userData.velocity)
@@ -311,6 +355,8 @@ export function useThreeBackground() {
 
     return {
         canvasRef,
-        initThree
+        initThree,
+        currentTheme,
+        themes
     };
 }
