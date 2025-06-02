@@ -6,6 +6,25 @@ import type { Task } from '../types/task';
 import { useThemeColors } from './useThemeColors';
 import { useCoordinateConverter } from './useCoordinateConverter';
 
+const taskParticleColors = {
+    red: {
+        completed: 0xFF6B6B,    // кораллово-красный
+        active: 0x5A1A1A       // пыльный бордовый
+    },
+    blue: {
+        completed: 0x7FDBFF,   // светло-голубой неон
+        active: 0x1B3A4B       // глубокий тёмно-синий
+    },
+    green: {
+        completed: 0xA4F57A,   // лаймово-зелёный
+        active: 0x355E3B       // тускло-зелёный
+    },
+    gold: {
+        completed: 0xFFD700,   // насыщенное золото
+        active: 0x6E552D       // тяжёлое бронзово-золотое
+    }
+}
+
 export function useThreeBackground() {
     const canvasRef = ref<HTMLCanvasElement | null>(null);
     const { currentTheme, themes } = useThemeColors();
@@ -169,10 +188,13 @@ export function useThreeBackground() {
         const particle = taskParticles.find(p => p.userData.taskId === taskId);
         
         if (particle && particle.material instanceof THREE.MeshBasicMaterial) {
-            // Устанавливаем целевой цвет в userData для плавной анимации
-            particle.userData.targetColor = isCompleted ? 0x00ff00 : 0xff6600; // зеленый : оранжевый
+            // Получаем цвет на основе текущей темы и статуса задачи
+            const themeColors = taskParticleColors[currentTheme.value];
+            const targetColor = isCompleted ? themeColors.completed : themeColors.active;
             
-            console.log(`Установлен целевой цвет для частицы задачи ${taskId}: ${isCompleted ? 'зеленый' : 'оранжевый'}`);
+            particle.userData.targetColor = targetColor;
+            
+            console.log(`Установлен цвет для частицы задачи ${taskId} в теме ${currentTheme.value}: ${isCompleted ? 'выполнено' : 'активно'}`);
         }
     }
 
@@ -182,8 +204,9 @@ export function useThreeBackground() {
         
         const geometry = new THREE.BoxGeometry(2.5, 2.5, 2.5)
         
+        const themeColors = taskParticleColors[currentTheme.value];
         const material = new THREE.MeshBasicMaterial({
-            color: task.completed ? 0x00ff00 : 0xff6600,
+            color: task.completed ? themeColors.completed : themeColors.active,
             wireframe: true,
             transparent: true,
             opacity: 0.8
@@ -210,7 +233,7 @@ export function useThreeBackground() {
         // Обычная случайная скорость
         mesh.userData = {
             taskId: task.id,
-            targetColor: task.completed ? 0x00ff00 : 0xff6600, // начальный целевой цвет
+            targetColor: task.completed ? themeColors.completed : themeColors.active,
             velocity: new THREE.Vector3(
                 (Math.random() - 0.5) * 0.2,
                 (Math.random() - 0.5) * 0.2,
@@ -294,8 +317,9 @@ export function useThreeBackground() {
         taskStore.tasks.forEach((task, index) => {  
             const geometry = new THREE.BoxGeometry(2.5, 2.5, 2.5)
             
+            const themeColors = taskParticleColors[currentTheme.value];
             const material = new THREE.MeshBasicMaterial({
-                color: task.completed ? 0x00ff00 : 0xff6600,
+                color: task.completed ? themeColors.completed : themeColors.active,
                 wireframe: true,
                 transparent: true,
                 opacity: 0.8
@@ -321,7 +345,7 @@ export function useThreeBackground() {
             
             mesh.userData = {
                 taskId: task.id,
-                targetColor: task.completed ? 0x00ff00 : 0xff6600, // начальный целевой цвет
+                targetColor: task.completed ? themeColors.completed : themeColors.active,
                 velocity: new THREE.Vector3(
                     (Math.random() - 0.5) * 0.2,
                     (Math.random() - 0.5) * 0.2,
@@ -513,6 +537,33 @@ export function useThreeBackground() {
         setTimeout(() => {
             updateTaskListBoundsFromDOM()
         }, 50)
+    }
+
+    // Добавим новый watcher для смены темы
+    watch(currentTheme, (newTheme) => {
+        // Обновляем цвета всех существующих task particles при смене темы
+        updateAllTaskParticleColors();
+    }, { immediate: false })
+
+    // Функция для обновления цветов всех task particles
+    const updateAllTaskParticleColors = () => {
+        const themeColors = taskParticleColors[currentTheme.value];
+        
+        taskParticles.forEach(particle => {
+            if (particle.material instanceof THREE.MeshBasicMaterial) {
+                // Находим соответствующую задачу по taskId
+                const task = taskStore.tasks.find(t => t.id === particle.userData.taskId);
+                
+                if (task) {
+                    const targetColor = task.completed ? themeColors.completed : themeColors.active;
+                    particle.userData.targetColor = targetColor;
+                    
+                    console.log(`Обновлен цвет частицы задачи ${task.id} для темы ${currentTheme.value}`);
+                }
+            }
+        });
+        
+        console.log(`Обновлены цвета всех частиц для темы: ${currentTheme.value}`);
     }
 
     onMounted(() => {
