@@ -149,6 +149,33 @@ export function useThreeBackground() {
         }
     })
 
+    // ДОБАВЛЯЕМ новый watcher для отслеживания изменений статуса задач
+    watch(() => taskStore.tasks.map(task => task.completed), (newCompletedStates, oldCompletedStates) => {
+        if (!newCompletedStates || !oldCompletedStates) return;
+        
+        // Находим задачи, у которых изменился статус
+        newCompletedStates.forEach((isCompleted, index) => {
+            const wasCompleted = oldCompletedStates[index];
+            
+            // Если статус задачи изменился
+            if (isCompleted !== wasCompleted) {
+                updateTaskParticleColor(taskStore.tasks[index].id, isCompleted);
+            }
+        });
+    }, { deep: true })
+
+    // Функция для обновления цвета конкретной task particle
+    const updateTaskParticleColor = (taskId: number, isCompleted: boolean) => {
+        const particle = taskParticles.find(p => p.userData.taskId === taskId);
+        
+        if (particle && particle.material instanceof THREE.MeshBasicMaterial) {
+            // Устанавливаем целевой цвет в userData для плавной анимации
+            particle.userData.targetColor = isCompleted ? 0x00ff00 : 0xff6600; // зеленый : оранжевый
+            
+            console.log(`Установлен целевой цвет для частицы задачи ${taskId}: ${isCompleted ? 'зеленый' : 'оранжевый'}`);
+        }
+    }
+
     const addSingleTaskParticle = (task: any, index: number) => {
         // ДОБАВЛЯЕМ проверку
         if (!scene) return;
@@ -183,6 +210,7 @@ export function useThreeBackground() {
         // Обычная случайная скорость
         mesh.userData = {
             taskId: task.id,
+            targetColor: task.completed ? 0x00ff00 : 0xff6600, // начальный целевой цвет
             velocity: new THREE.Vector3(
                 (Math.random() - 0.5) * 0.2,
                 (Math.random() - 0.5) * 0.2,
@@ -254,6 +282,8 @@ export function useThreeBackground() {
         // ДОБАВЛЯЕМ проверку
         if (!scene) return;
         
+        console.log(`Создание частиц задач: ${taskStore.tasks.length} задач найдено`);
+        
         // Очищаем старые частицы задач
         taskParticles.forEach(particle => {
             scene.remove(particle)
@@ -291,6 +321,7 @@ export function useThreeBackground() {
             
             mesh.userData = {
                 taskId: task.id,
+                targetColor: task.completed ? 0x00ff00 : 0xff6600, // начальный целевой цвет
                 velocity: new THREE.Vector3(
                     (Math.random() - 0.5) * 0.2,
                     (Math.random() - 0.5) * 0.2,
@@ -304,7 +335,11 @@ export function useThreeBackground() {
             
             scene.add(mesh)
             taskParticles.push(mesh)
+            
+            console.log(`Создана частица для задачи ${task.id}: "${task.title}" (${task.completed ? 'завершена' : 'активна'})`);
         })
+        
+        console.log(`Всего создано частиц задач: ${taskParticles.length}`);
     }
     
     const initThree = () => {
@@ -328,6 +363,7 @@ export function useThreeBackground() {
         camera.position.z = 50;
 
         createBackgroundParticles()
+        createTaskParticles()
         updateParticles()
         
         // Автоматически обновляем границы TaskList после инициализации
@@ -432,6 +468,26 @@ export function useThreeBackground() {
                         // Вертикальный отскок
                         particle.userData.velocity.y = deltaY > 0 ? Math.abs(particle.userData.velocity.y) : -Math.abs(particle.userData.velocity.y)
                     }
+                }
+            }
+            
+            // ПЛАВНАЯ анимация цвета
+            if (particle.userData.targetColor !== undefined && 
+                particle.material instanceof THREE.MeshBasicMaterial) {
+                
+                const currentColor = particle.material.color;
+                const targetColor = new THREE.Color(particle.userData.targetColor);
+                
+                // Плавная интерполяция к целевому цвету
+                currentColor.lerp(targetColor, 0.05); // 0.05 = скорость перехода
+                
+                // Проверяем близость через сравнение компонентов RGB
+                const rDiff = Math.abs(currentColor.r - targetColor.r);
+                const gDiff = Math.abs(currentColor.g - targetColor.g);
+                const bDiff = Math.abs(currentColor.b - targetColor.b);
+                
+                if (rDiff < 0.01 && gDiff < 0.01 && bDiff < 0.01) {
+                    delete particle.userData.targetColor;
                 }
             }
             
