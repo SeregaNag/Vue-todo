@@ -24,7 +24,7 @@ const { currentTheme, themes } = useThreeBackground();
     </main>
 
     <footer :style="{ backgroundColor: themes[currentTheme].secondary }">
-      <p>Vue Task Manager &copy; 2023</p>
+      <p>Vue Task Manager &copy; 2025</p>
     </footer>
   </div>
 </template>

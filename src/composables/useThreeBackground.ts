@@ -39,6 +39,9 @@ export function useThreeBackground() {
     let taskParticles: THREE.Mesh[] = []       // большие для задач
     const taskStore = useTaskStore();
 
+    let distractionFragments: THREE.Mesh[] = [] // фрагменты разборки  
+    let assemblyFragments: THREE.Mesh[] = []     // фрагменты сборки
+
     const taskStats = computed(() => {
         const total = taskStore.tasks.length;
         const completed = taskStore.tasks.filter(task => task.completed).length;
@@ -49,6 +52,150 @@ export function useThreeBackground() {
             progress
         }
     })
+
+    const createDistractionEffect = (particle: THREE.Mesh) => {
+        const fragments: THREE.Mesh[] = [];
+        const fragmentCount = 50;
+
+        for(let i = 0; i<fragmentCount; i++) {
+            const fragmentSize = Math.random() * 0.3 + 0.1;
+            const fragmentGeometry = new THREE.BoxGeometry(fragmentSize, fragmentSize, fragmentSize);
+
+            const fragmentMaterial = new THREE.MeshBasicMaterial({
+                color: (particle.material as THREE.MeshBasicMaterial).color.clone(),
+                wireframe: true,
+                transparent: true,
+                opacity: 0.8
+            })
+
+            const fragment = new THREE.Mesh(fragmentGeometry, fragmentMaterial);
+            
+            fragment.position.copy(particle.position);
+            fragment.position.add(new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+            ))
+            
+            fragment.userData = {
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.8,
+                    (Math.random() - 0.5) * 0.8,
+                    (Math.random() - 0.5) * 0.8
+                ),
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.1,
+                    y: (Math.random() - 0.5) * 0.1,
+                    z: (Math.random() - 0.5) * 0.1
+                },
+                lifetime: 0,
+                maxLifetime: Math.random() * 2 + 1
+            }
+
+            scene.add(fragment)
+            distractionFragments.push(fragment)
+        }
+
+        return fragments;
+    }
+
+    const animateFragments = () => {
+        for(let i = distractionFragments.length - 1; i >= 0; i--) {
+            const fragment = distractionFragments[i];
+            fragment.userData.lifetime++;
+
+            fragment.position.add(fragment.userData.velocity);
+
+            fragment.rotation.x += fragment.userData.rotationSpeed.x;
+            fragment.rotation.y += fragment.userData.rotationSpeed.y;
+            fragment.rotation.z += fragment.userData.rotationSpeed.z;
+
+            fragment.userData.velocity.multiplyScalar(0.98);
+
+            const lifeProgress = fragment.userData.lifetime / fragment.userData.maxLifetime;
+            if(fragment.material instanceof THREE.MeshBasicMaterial) {
+                fragment.material.opacity = Math.max(0, 1 - lifeProgress);
+            }
+
+            if(fragment.userData.lifetime >= fragment.userData.maxLifetime) {
+                scene.remove(fragment);
+                distractionFragments.splice(i, 1);
+            }
+        }
+    }
+
+    const createAssemblyEffect = (targetPosition: THREE.Vector3, task: any) => {
+        const fragments: THREE.Mesh[] = [];
+        const fragmentCount = 100;
+
+        for(let i = 0; i<fragmentCount; i++) {
+            const fragmentSize = Math.random() * 0.2;
+            const fragmentGeometry = new THREE.BoxGeometry(fragmentSize, fragmentSize, fragmentSize);
+
+            const themeColors = taskParticleColors[currentTheme.value];
+            const fragmentMaterial = new THREE.MeshBasicMaterial({
+                color: task.completed ? themeColors.completed : themeColors.active,
+                wireframe: true,
+                transparent: true,
+                opacity: 0
+            })
+
+            const fragment = new THREE.Mesh(fragmentGeometry, fragmentMaterial);
+            
+            const startRadius = 15;
+            fragment.position.copy(targetPosition);
+            fragment.position.add(new THREE.Vector3(
+                (Math.random() - 0.5) * startRadius,
+                (Math.random() - 0.5) * startRadius,
+                (Math.random() - 0.5) * startRadius
+            ));
+
+            fragment.userData = {
+                targetPosition: targetPosition.clone(),
+                lifetime: 0,
+                maxLifetime: 90,
+                isAssembling: true,
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.1,
+                    y: (Math.random() - 0.5) * 0.1,
+                    z: (Math.random() - 0.5) * 0.1
+                }
+            }
+            scene.add(fragment);
+            assemblyFragments.push(fragment);
+        }
+        return fragments;
+    }
+    
+    const animateAssemblyFragments = () => {
+        for(let i = assemblyFragments.length - 1; i >= 0; i--) {
+            const fragment = assemblyFragments[i];
+            fragment.userData.lifetime++;
+
+            const direction = new THREE.Vector3().subVectors(
+                fragment.userData.targetPosition,
+                fragment.position
+            );
+            const speed = 0.03;
+            fragment.position.add(direction.multiplyScalar(speed));
+
+            fragment.rotation.x += fragment.userData.rotationSpeed.x;
+            fragment.rotation.y += fragment.userData.rotationSpeed.y;
+            fragment.rotation.z += fragment.userData.rotationSpeed.z;
+
+            const lifeProgress = fragment.userData.lifetime/fragment.userData.maxLifetime;
+            if(fragment.material instanceof THREE.MeshBasicMaterial) {
+                fragment.material.opacity = Math.min(1.0, lifeProgress);
+            }
+
+            const distanceToTarget = fragment.position.distanceTo(fragment.userData.targetPosition);
+            if(fragment.userData.lifetime >= fragment.userData.maxLifetime || distanceToTarget < 0.5) {
+                scene.remove(fragment);
+                assemblyFragments.splice(i, 1);
+            }
+        }
+    }
+    
 
     const updateTaskListBounds = (domBounds: DOMRect) => {
         if (!camera || !renderer) return
@@ -101,6 +248,42 @@ export function useThreeBackground() {
             console.log('Three.js границы TaskList:', taskListBounds)
         }
     }
+
+    // ДОБАВИТЬ ЗДЕСЬ функции trigger* (ДО watchers)
+const triggerTaskCreation = (task: any) => {
+    const particle = taskParticles.find(p => p.userData.taskId === task.id);
+    if (particle) {
+        // Частица уже скрыта при создании
+        createAssemblyEffect(particle.position, task);
+        
+        // ПОКАЗАТЬ частицу когда сборка действительно завершится
+        // maxLifetime: 90 кадров при 60fps = 1500ms
+        setTimeout(() => {
+            particle.visible = true;
+        }, 1500); 
+        
+        console.log(`Эффект сборки для задачи ${task.id}`);
+    }
+}
+
+const triggerTaskDeletion = (taskId: number) => {
+    const particle = taskParticles.find(p => p.userData.taskId === taskId);
+    if (particle) {
+        createDistractionEffect(particle);
+        console.log(`Эффект разборки для задачи ${taskId}`);
+    }
+}
+
+const triggerTaskStatusChange = (task: any) => {
+    const particle = taskParticles.find(p => p.userData.taskId === task.id);
+    if (particle) {
+        createDistractionEffect(particle);
+        setTimeout(() => {
+            createAssemblyEffect(particle.position, task);
+        }, 500);
+        console.log(`Эффект смены статуса для задачи ${task.id}`);
+    }
+}
 
     const updateParticles = () => {
         const { progress } = taskStats.value;
@@ -155,7 +338,12 @@ export function useThreeBackground() {
     watch(() => taskStore.tasks.length, (newLength, oldLength) => {
         if (newLength > oldLength) {
             const newTask = taskStore.tasks[taskStore.tasks.length - 1];
-            addSingleTaskParticle(newTask, taskStore.tasks.length - 1)
+            addSingleTaskParticle(newTask, taskStore.tasks.length - 1);
+            
+            // ДОБАВИТЬ: эффект создания задачи
+            setTimeout(() => {
+                triggerTaskCreation(newTask);
+            }, 200);
         } else if (newLength < oldLength) {
             createTaskParticles()
         }
@@ -172,13 +360,14 @@ export function useThreeBackground() {
     watch(() => taskStore.tasks.map(task => task.completed), (newCompletedStates, oldCompletedStates) => {
         if (!newCompletedStates || !oldCompletedStates) return;
         
-        // Находим задачи, у которых изменился статус
         newCompletedStates.forEach((isCompleted, index) => {
             const wasCompleted = oldCompletedStates[index];
             
-            // Если статус задачи изменился
             if (isCompleted !== wasCompleted) {
                 updateTaskParticleColor(taskStore.tasks[index].id, isCompleted);
+                
+                // ДОБАВИТЬ: эффект смены статуса  
+                triggerTaskStatusChange(taskStore.tasks[index]);
             }
         });
     }, { deep: true })
@@ -247,10 +436,13 @@ export function useThreeBackground() {
         
         scene.add(mesh)
         taskParticles.push(mesh)
+
+        // Скрываем новую частицу до завершения эффекта сборки
+        mesh.visible = false;
     }
 
     const createBackgroundParticles = () => {
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 50; i++) {
             const geometries = [
                 new THREE.BoxGeometry(0.8, 0.8, 0.8),
                 new THREE.SphereGeometry(0.5, 6, 6),
@@ -519,6 +711,10 @@ export function useThreeBackground() {
             particle.rotation.y += particle.userData.rotationSpeed.y
         });
 
+        // Анимируем эффекты разборки и сборки
+        animateFragments();
+        animateAssemblyFragments();
+
         renderer.render(scene, camera);
     }
 
@@ -587,6 +783,11 @@ export function useThreeBackground() {
         initThree,
         currentTheme,
         themes,
-        updateTaskListBounds
+        updateTaskListBounds,
+        createDistractionEffect,
+        createAssemblyEffect,
+        triggerTaskCreation,
+        triggerTaskDeletion,
+        triggerTaskStatusChange
     };
 }
