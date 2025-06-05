@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import ThreeBackground from './components/ThreeBackground.vue';
-import { useThreeBackground } from './composables/useThreeBackground';
+import { useThemeColors } from './composables/useThemeColors';
 
-const { currentTheme, themes } = useThreeBackground();
+const { currentTheme, themes } = useThemeColors();
 </script>
 
 <template>

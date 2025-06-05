@@ -38,6 +38,8 @@ export function useThreeBackground() {
     let backgroundParticles: THREE.Mesh[] = [] // маленькие фоновые
     let taskParticles: THREE.Mesh[] = []       // большие для задач
     const taskStore = useTaskStore();
+    
+    let isInitialized = false; // флаг для избежания дублирования при инициализации
 
     let distractionFragments: THREE.Mesh[] = [] // фрагменты разборки  
     let assemblyFragments: THREE.Mesh[] = []     // фрагменты сборки
@@ -55,7 +57,7 @@ export function useThreeBackground() {
 
     const createDistractionEffect = (particle: THREE.Mesh) => {
         const fragments: THREE.Mesh[] = [];
-        const fragmentCount = 50;
+        const fragmentCount = 250;
 
         for(let i = 0; i<fragmentCount; i++) {
             const fragmentSize = Math.random() * 0.3 + 0.1;
@@ -125,11 +127,14 @@ export function useThreeBackground() {
     }
 
     const createAssemblyEffect = (targetPosition: THREE.Vector3, task: any) => {
+        console.log('🔵 createAssemblyEffect вызван для задачи:', task.id, task.title);
+        console.trace('🔍 Стек вызовов createAssemblyEffect:');
+        
         const fragments: THREE.Mesh[] = [];
-        const fragmentCount = 100;
+        const fragmentCount = 250;
 
         for(let i = 0; i<fragmentCount; i++) {
-            const fragmentSize = Math.random() * 0.2;
+            const fragmentSize = 0.05;
             const fragmentGeometry = new THREE.BoxGeometry(fragmentSize, fragmentSize, fragmentSize);
 
             const themeColors = taskParticleColors[currentTheme.value];
@@ -151,7 +156,11 @@ export function useThreeBackground() {
             ));
 
             fragment.userData = {
-                targetPosition: targetPosition.clone(),
+                targetPosition: new THREE.Vector3(
+                    targetPosition.x + (Math.random() - 0.5) * 2.5,  // разброс ±1.25
+                    targetPosition.y + (Math.random() - 0.5) * 2.5,  // разброс ±1.25  
+                    targetPosition.z + (Math.random() - 0.5) * 2.5   // разброс ±1.25
+                ),
                 lifetime: 0,
                 maxLifetime: 90,
                 isAssembling: true,
@@ -188,8 +197,7 @@ export function useThreeBackground() {
                 fragment.material.opacity = Math.min(1.0, lifeProgress);
             }
 
-            const distanceToTarget = fragment.position.distanceTo(fragment.userData.targetPosition);
-            if(fragment.userData.lifetime >= fragment.userData.maxLifetime || distanceToTarget < 0.5) {
+            if(fragment.userData.lifetime >= fragment.userData.maxLifetime) {
                 scene.remove(fragment);
                 assemblyFragments.splice(i, 1);
             }
@@ -251,19 +259,8 @@ export function useThreeBackground() {
 
     // ДОБАВИТЬ ЗДЕСЬ функции trigger* (ДО watchers)
 const triggerTaskCreation = (task: any) => {
-    const particle = taskParticles.find(p => p.userData.taskId === task.id);
-    if (particle) {
-        // Частица уже скрыта при создании
-        createAssemblyEffect(particle.position, task);
-        
-        // ПОКАЗАТЬ частицу когда сборка действительно завершится
-        // maxLifetime: 90 кадров при 60fps = 1500ms
-        setTimeout(() => {
-            particle.visible = true;
-        }, 1500); 
-        
-        console.log(`Эффект сборки для задачи ${task.id}`);
-    }
+    // Эффект сборки уже запускается в addSingleTaskParticle
+    console.log(`Эффект сборки для задачи ${task.id} уже запущен`);
 }
 
 const triggerTaskDeletion = (taskId: number) => {
@@ -275,14 +272,9 @@ const triggerTaskDeletion = (taskId: number) => {
 }
 
 const triggerTaskStatusChange = (task: any) => {
-    const particle = taskParticles.find(p => p.userData.taskId === task.id);
-    if (particle) {
-        createDistractionEffect(particle);
-        setTimeout(() => {
-            createAssemblyEffect(particle.position, task);
-        }, 500);
-        console.log(`Эффект смены статуса для задачи ${task.id}`);
-    }
+    // При смене статуса задачи только плавно меняем цвет частицы
+    // Никаких эффектов разборки/сборки
+    console.log(`Плавная смена цвета для задачи ${task.id}: ${task.completed ? 'выполнена' : 'активна'}`);
 }
 
     const updateParticles = () => {
@@ -336,6 +328,9 @@ const triggerTaskStatusChange = (task: any) => {
     }, { deep: true })
     
     watch(() => taskStore.tasks.length, (newLength, oldLength) => {
+        // Проверяем что уже инициализировано, чтобы избежать срабатывания при старте
+        if (!isInitialized) return;
+        
         if (newLength > oldLength) {
             const newTask = taskStore.tasks[taskStore.tasks.length - 1];
             addSingleTaskParticle(newTask, taskStore.tasks.length - 1);
@@ -350,7 +345,7 @@ const triggerTaskStatusChange = (task: any) => {
     })
 
     watch(() => taskStore.tasks, (newTasks) => {
-        // ИЗМЕНЯЕМ условие: если количество частиц НЕ равно количеству задач
+        // ИЗМЕНЯЕМ условие: если количество частиц НЕ равно количеству задач И уже инициализировано
         if (newTasks.length > 0 && taskParticles.length !== newTasks.length) {
             createTaskParticles()
         }
@@ -358,7 +353,7 @@ const triggerTaskStatusChange = (task: any) => {
 
     // ДОБАВЛЯЕМ новый watcher для отслеживания изменений статуса задач
     watch(() => taskStore.tasks.map(task => task.completed), (newCompletedStates, oldCompletedStates) => {
-        if (!newCompletedStates || !oldCompletedStates) return;
+        if (!isInitialized || !newCompletedStates || !oldCompletedStates) return;
         
         newCompletedStates.forEach((isCompleted, index) => {
             const wasCompleted = oldCompletedStates[index];
@@ -439,6 +434,14 @@ const triggerTaskStatusChange = (task: any) => {
 
         // Скрываем новую частицу до завершения эффекта сборки
         mesh.visible = false;
+        
+        // Запускаем эффект сборки сразу
+        createAssemblyEffect(mesh.position, task);
+        
+        // Показываем частицу через 1800ms после начала эффекта
+        setTimeout(() => {
+            mesh.visible = true;
+        }, 1800);
     }
 
     const createBackgroundParticles = () => {
@@ -497,7 +500,8 @@ const triggerTaskStatusChange = (task: any) => {
         // ДОБАВЛЯЕМ проверку
         if (!scene) return;
         
-        console.log(`Создание частиц задач: ${taskStore.tasks.length} задач найдено`);
+        console.log(`🟢 createTaskParticles вызвана: ${taskStore.tasks.length} задач найдено`);
+        console.trace('🔍 Стек вызовов createTaskParticles:');
         
         // Очищаем старые частицы задач
         taskParticles.forEach(particle => {
@@ -549,13 +553,30 @@ const triggerTaskStatusChange = (task: any) => {
                 }
             }
             
+            // Изначально частица невидима до завершения эффекта сборки
+            mesh.visible = false;
+            
             scene.add(mesh)
             taskParticles.push(mesh)
+            
+            // Запускаем эффект сборки сразу для всех частиц
+            createAssemblyEffect(mesh.position, task);
+            
+            // Показываем частицу через 1800ms после начала эффекта
+            setTimeout(() => {
+                mesh.visible = true;
+            }, 1800);
             
             console.log(`Создана частица для задачи ${task.id}: "${task.title}" (${task.completed ? 'завершена' : 'активна'})`);
         })
         
         console.log(`Всего создано частиц задач: ${taskParticles.length}`);
+        
+        // Устанавливаем флаг инициализации только если есть реальные задачи
+        if (!isInitialized && taskStore.tasks.length > 0) {
+            isInitialized = true;
+            console.log('✅ Инициализация завершена с задачами:', taskStore.tasks.length);
+        }
     }
     
     const initThree = () => {
@@ -579,7 +600,6 @@ const triggerTaskStatusChange = (task: any) => {
         camera.position.z = 50;
 
         createBackgroundParticles()
-        createTaskParticles()
         updateParticles()
         
         // Автоматически обновляем границы TaskList после инициализации
@@ -646,6 +666,8 @@ const triggerTaskStatusChange = (task: any) => {
 
         // Анимируем частицы задач
         taskParticles.forEach(particle => {
+            if (!particle.visible) return; // НЕ двигаем скрытые частицы
+            
             particle.position.add(particle.userData.velocity)
             
             // Отскок от границ экрана
