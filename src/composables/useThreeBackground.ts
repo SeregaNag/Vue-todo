@@ -56,13 +56,12 @@ export function useThreeBackground() {
     })
 
     const createDistractionEffect = (particle: THREE.Mesh) => {
-        console.log('🔴 Дезинтеграция Таноса (вокселизация) для частицы:', particle.userData.taskId);
         
         const fragments: THREE.Mesh[] = [];
         
-        // Разбиваем куб на воксели 4x4x4 = 64 мини-куба
-        const voxelSize = 2.5 / 4; // размер одного вокселя
-        const voxelsPerSide = 4;
+        // Разбиваем куб на воксели 5x5x5 = 125 мини-кубов
+        const voxelSize = 2.5 / 5; // размер одного вокселя
+        const voxelsPerSide = 5;
         
         for(let x = 0; x < voxelsPerSide; x++) {
             for(let y = 0; y < voxelsPerSide; y++) {
@@ -119,7 +118,7 @@ export function useThreeBackground() {
             }
         }
         
-        console.log(`Создано ${distractionFragments.length} вокселей для дезинтеграции`);
+
         return fragments;
     }
 
@@ -180,11 +179,11 @@ export function useThreeBackground() {
     }
 
     const startVoxelAssembly = (targetPosition: THREE.Vector3, task: any) => {
-        console.log('🔵 Воксельная сборка для задачи:', task.id);
+
         
         const voxels: THREE.Mesh[] = [];
-        const voxelSize = 2.5 / 4; // размер одного вокселя
-        const voxelsPerSide = 4;
+        const voxelSize = 2.5 / 5; // размер одного вокселя
+        const voxelsPerSide = 5;
         
         const themeColors = taskParticleColors[currentTheme.value];
         const baseColor = task.completed ? themeColors.completed : themeColors.active;
@@ -238,7 +237,7 @@ export function useThreeBackground() {
             }
         }
         
-        console.log(`Создано ${voxels.length} вокселей для сборки`);
+
         return voxels;
     }
 
@@ -277,7 +276,7 @@ export function useThreeBackground() {
             scene.add(voxel);
             assemblyFragments.push(voxel);
             
-            console.log(`💫 Воксель летит к цели от позиции:`, startPosition, 'к позиции:', voxel.userData.targetPosition);
+
             
         }, delay);
     }
@@ -302,7 +301,7 @@ export function useThreeBackground() {
                     fragment.position.copy(fragment.userData.targetPosition);
                     fragment.userData.velocity.set(0, 0, 0);
                     fragment.userData.hasReachedTarget = true; // ПОМЕЧАЕМ что достиг цели
-                    console.log(`🎯 Воксель достиг цели! Расстояние: ${distance.toFixed(2)}`);
+
                 } else {
                     // Летим к цели
                     fragment.position.add(fragment.userData.velocity);
@@ -391,38 +390,25 @@ export function useThreeBackground() {
             const rect = taskListElement.getBoundingClientRect()
             updateTaskListBounds(rect)
             
-            // ОТЛАДКА: выводим границы в консоль
-            console.log('DOM границы TaskList:', {
-                left: rect.left,
-                right: rect.right,
-                top: rect.top,
-                bottom: rect.bottom,
-                width: rect.width,
-                height: rect.height
-            })
-            
-            console.log('Three.js границы TaskList:', taskListBounds)
+
         }
     }
 
     // ДОБАВИТЬ ЗДЕСЬ функции trigger* (ДО watchers)
 const triggerTaskCreation = (task: any) => {
     // Эффект сборки уже запускается в addSingleTaskParticle
-    console.log(`Эффект сборки для задачи ${task.id} уже запущен`);
 }
 
 const triggerTaskDeletion = (taskId: number) => {
     const particle = taskParticles.find(p => p.userData.taskId === taskId);
     if (particle) {
         createDistractionEffect(particle);
-        console.log(`Эффект разборки для задачи ${taskId}`);
     }
 }
 
 const triggerTaskStatusChange = (task: any) => {
     // При смене статуса задачи только плавно меняем цвет частицы
     // Никаких эффектов разборки/сборки
-    console.log(`Плавная смена цвета для задачи ${task.id}: ${task.completed ? 'выполнена' : 'активна'}`);
 }
 
     const updateParticles = () => {
@@ -548,7 +534,7 @@ const triggerTaskStatusChange = (task: any) => {
                 });
             }
             
-            console.log(`Установлен цвет для воксельной частицы задачи ${taskId} в теме ${currentTheme.value}: ${isCompleted ? 'выполнено' : 'активно'}`);
+
         }
     }
 
@@ -576,12 +562,12 @@ const triggerTaskStatusChange = (task: any) => {
                 }
             }, 5000);
             
-            console.log(`Запущен эффект удаления для задачи ${taskId}`);
+
         }
     }
 
     const startVoxelDisintegration = (particle: THREE.Mesh) => {
-        console.log('🔴 Воксельная дезинтеграция для частицы:', particle.userData.taskId);
+
         
         const voxels = particle.userData.voxels as THREE.Mesh[];
         
@@ -639,7 +625,7 @@ const triggerTaskStatusChange = (task: any) => {
             scene.add(flyingVoxel);
             distractionFragments.push(flyingVoxel);
             
-            console.log(`💥 Воксель летит влево от позиции:`, worldPosition, 'с направлением:', direction);
+
             
         }, delay);
     }
@@ -649,8 +635,8 @@ const triggerTaskStatusChange = (task: any) => {
         const cubeGroup = new THREE.Group();
         const voxels: THREE.Mesh[] = [];
         
-        const voxelSize = 2.5 / 4; // 4x4x4 воксели
-        const voxelsPerSide = 4;
+        const voxelSize = 2.5 / 5; // 5x5x5 воксели
+        const voxelsPerSide = 5;
         
         const themeColors = taskParticleColors[currentTheme.value];
         const baseColor = task.completed ? themeColors.completed : themeColors.active;
@@ -761,11 +747,8 @@ const triggerTaskStatusChange = (task: any) => {
             
             const totalVoxelsCount = assemblingVoxels.length;
             
-            console.log(`🔍 Задача ${task.id}: ${reachedTargetCount}/${totalVoxelsCount} вокселей достигли цели`);
-            
             if (reachedTargetCount === totalVoxelsCount && totalVoxelsCount > 0) {
                 // ВСЕ воксели достигли своих целей - создаем финальный куб
-                console.log(`🎯 ВСЕ воксели для задачи ${task.id} достигли целей!`);
                 
                 // Убираем все воксели сборки
                 assemblingVoxels.forEach(voxel => {
@@ -781,7 +764,7 @@ const triggerTaskStatusChange = (task: any) => {
                 cubeGroup.userData.voxels = finalVoxels;
                 cubeGroup.visible = true;
                 
-                console.log(`✅ Воксели собрались в куб для задачи ${task.id}`);
+
             } else {
                 // Ещё не все воксели достигли целей - проверяем снова через 100ms
                 setTimeout(checkAssemblyComplete, 100);
@@ -848,8 +831,7 @@ const triggerTaskStatusChange = (task: any) => {
         // ДОБАВЛЯЕМ проверку
         if (!scene) return;
         
-        console.log(`🟢 createTaskParticles вызвана: ${taskStore.tasks.length} задач найдено`);
-        console.trace('🔍 Стек вызовов createTaskParticles:');
+
         
         // Очищаем старые частицы задач
         taskParticles.forEach(particle => {
@@ -912,7 +894,6 @@ const triggerTaskStatusChange = (task: any) => {
                 
                 if (reachedTargetCount === totalVoxelsCount && totalVoxelsCount > 0) {
                     // ВСЕ воксели достигли своих целей - создаем финальный куб
-                    console.log(`🎯 ВСЕ воксели для задачи ${task.id} достигли целей! (createTaskParticles)`);
                     
                     // Убираем все воксели сборки
                     assemblingVoxels.forEach(voxel => {
@@ -928,7 +909,7 @@ const triggerTaskStatusChange = (task: any) => {
                     cubeGroup.userData.voxels = finalVoxels;
                     cubeGroup.visible = true;
                     
-                    console.log(`✅ Воксели собрались в куб для задачи ${task.id} (createTaskParticles)`);
+
                 } else {
                     // Ещё не все воксели достигли целей - проверяем снова через 100ms
                     setTimeout(checkAssemblyComplete, 100);
@@ -938,17 +919,17 @@ const triggerTaskStatusChange = (task: any) => {
             // Начинаем проверку через 1 секунду (чтобы воксели успели появиться)
             setTimeout(checkAssemblyComplete, 1000);
             
-            console.log(`Создана воксельная частица для задачи ${task.id}: "${task.title}" (${task.completed ? 'завершена' : 'активна'})`);
+
         })
         
-        console.log(`Всего создано частиц задач: ${taskParticles.length}`);
+
         
-        // Устанавливаем флаг инициализации только если есть реальные задачи
-        if (!isInitialized && taskStore.tasks.length > 0) {
+        // Устанавливаем флаг инициализации независимо от количества задач
+        if (!isInitialized) {
             isInitialized = true;
             // Инициализируем список ID задач
             previousTaskIds = taskStore.tasks.map(task => task.id);
-            console.log('✅ Инициализация завершена с задачами:', taskStore.tasks.length);
+
         }
     }
     
@@ -974,6 +955,9 @@ const triggerTaskStatusChange = (task: any) => {
 
         createBackgroundParticles()
         updateParticles()
+        
+        // ВАЖНО: вызываем createTaskParticles для инициализации (даже если задач нет)
+        createTaskParticles()
         
         // Автоматически обновляем границы TaskList после инициализации
         setTimeout(() => {
@@ -1172,11 +1156,11 @@ const triggerTaskStatusChange = (task: any) => {
                     });
                 }
                 
-                console.log(`Обновлен цвет воксельной частицы задачи ${task.id} для темы ${currentTheme.value}`);
+
             }
         });
         
-        console.log(`Обновлены цвета всех воксельных частиц для темы: ${currentTheme.value}`);
+
     }
 
     onMounted(() => {
