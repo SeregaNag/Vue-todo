@@ -218,13 +218,40 @@ h1 {
 
 .tasks-container {
   margin-bottom: 20px;
+  max-height: 400px; /* Ограничиваем высоту */
+  overflow-y: auto; /* Добавляем вертикальный скроллбар */
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 10px;
+  background-color: #fafafa;
+}
+
+/* Стилизация скроллбара */
+.tasks-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tasks-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.tasks-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.tasks-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
 .empty-message {
   text-align: center;
   color: #666;
   font-style: italic;
-  padding: 20px;
+  padding: 40px 20px;
+  margin: 0;
+  font-size: 16px;
 }
 
 .task-count {
