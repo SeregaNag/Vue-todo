@@ -63,17 +63,23 @@ function cancelEdit() {
     border-radius: 6px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     transition: all 0.3s;
+    color: #333;
 }
 
 .task-content {
     display: flex;
     width: 100%;
     align-items: center;
+    color: #333;
+}
+
+.task-content span {
+    color: #333;
 }
 
 .completed {
     text-decoration: line-through;
-    color: #888;
+    color: #888 !important;
 }
 
 .task-item.completed {
