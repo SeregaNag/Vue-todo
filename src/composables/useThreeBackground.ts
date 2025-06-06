@@ -179,55 +179,107 @@ export function useThreeBackground() {
         }
     }
 
-    const createAssemblyEffect = (targetPosition: THREE.Vector3, task: any) => {
-        console.log('🔵 createAssemblyEffect вызван для задачи:', task.id, task.title);
-        console.trace('🔍 Стек вызовов createAssemblyEffect:');
+    const startVoxelAssembly = (targetPosition: THREE.Vector3, task: any) => {
+        console.log('🔵 Воксельная сборка для задачи:', task.id);
         
-        const fragments: THREE.Mesh[] = [];
-        const fragmentCount = 250;
-
-        for(let i = 0; i<fragmentCount; i++) {
-            const fragmentSize = 0.05;
-            const fragmentGeometry = new THREE.BoxGeometry(fragmentSize, fragmentSize, fragmentSize);
-
-            const themeColors = taskParticleColors[currentTheme.value];
-            const fragmentMaterial = new THREE.MeshBasicMaterial({
-                color: task.completed ? themeColors.completed : themeColors.active,
-                wireframe: false,  // сплошные кубы
-                transparent: true,
-                opacity: 0
-            })
-
-            const fragment = new THREE.Mesh(fragmentGeometry, fragmentMaterial);
-            
-            const startRadius = 15;
-            fragment.position.copy(targetPosition);
-            fragment.position.add(new THREE.Vector3(
-                (Math.random() - 0.5) * startRadius,
-                (Math.random() - 0.5) * startRadius,
-                (Math.random() - 0.5) * startRadius
-            ));
-
-            fragment.userData = {
-                targetPosition: new THREE.Vector3(
-                    targetPosition.x + (Math.random() - 0.5) * 2.5,  // разброс ±1.25
-                    targetPosition.y + (Math.random() - 0.5) * 2.5,  // разброс ±1.25  
-                    targetPosition.z + (Math.random() - 0.5) * 2.5   // разброс ±1.25
-                ),
-                lifetime: 0,
-                maxLifetime: 90,
-                isAssembling: true,
-                appearDelay: Math.random() * 60,  // большая задержка появления
-                rotationSpeed: {
-                    x: (Math.random() - 0.5) * 0.1,
-                    y: (Math.random() - 0.5) * 0.1,
-                    z: (Math.random() - 0.5) * 0.1
+        const voxels: THREE.Mesh[] = [];
+        const voxelSize = 2.5 / 4; // размер одного вокселя
+        const voxelsPerSide = 4;
+        
+        const themeColors = taskParticleColors[currentTheme.value];
+        const baseColor = task.completed ? themeColors.completed : themeColors.active;
+        
+        for(let x = 0; x < voxelsPerSide; x++) {
+            for(let y = 0; y < voxelsPerSide; y++) {
+                for(let z = 0; z < voxelsPerSide; z++) {
+                    // Создаем воксель точно как при разборке
+                    const voxelGeometry = new THREE.BoxGeometry(voxelSize, voxelSize, voxelSize);
+                    const voxelMaterial = new THREE.MeshBasicMaterial({
+                        color: baseColor,
+                        wireframe: false,
+                        transparent: true,
+                        opacity: 0.8
+                    });
+                    
+                    const voxel = new THREE.Mesh(voxelGeometry, voxelMaterial);
+                    
+                    // Позиция вокселя в кубе (целевая позиция)
+                    const localX = (x - voxelsPerSide/2 + 0.5) * voxelSize;
+                    const localY = (y - voxelsPerSide/2 + 0.5) * voxelSize;
+                    const localZ = (z - voxelsPerSide/2 + 0.5) * voxelSize;
+                    
+                    const finalPosition = targetPosition.clone().add(new THREE.Vector3(localX, localY, localZ));
+                    
+                    // Определяем случайную волну (как при разборке)
+                    const isFirstWave = Math.random() < 0.5;
+                    
+                    voxel.userData = {
+                        targetPosition: finalPosition,
+                        lifetime: 0,
+                        maxLifetime: 120, // в 2 раза быстрее
+                        isAssembling: true,
+                        // Первая волна: 0-30 кадров, вторая волна: 30-60 кадров
+                        appearDelay: isFirstWave ? 
+                            Math.random() * 30 : // первая волна
+                            30 + Math.random() * 30, // вторая волна с задержкой
+                        isFirstWave: isFirstWave,
+                        rotationSpeed: {
+                            x: (Math.random() - 0.5) * 0.05,
+                            y: (Math.random() - 0.5) * 0.05,
+                            z: (Math.random() - 0.5) * 0.05
+                        }
+                    };
+                    
+                    // Запускаем воксель с задержкой (как makeVoxelFly)
+                    makeVoxelAssemble(voxel, Math.random() * 400); // в 3 раза быстрее появление
+                    
+                    voxels.push(voxel);
                 }
             }
-            scene.add(fragment);
-            assemblyFragments.push(fragment);
         }
-        return fragments;
+        
+        console.log(`Создано ${voxels.length} вокселей для сборки`);
+        return voxels;
+    }
+
+    const makeVoxelAssemble = (voxel: THREE.Mesh, delay: number) => {
+        setTimeout(() => {
+            // Стартовая позиция - в центре экрана с большим разбросом
+            const startPosition = new THREE.Vector3(
+                (Math.random() - 0.5) * 40,  // больший разброс по X (-20 до 20) 
+                (Math.random() - 0.5) * 30,  // больший разброс по Y (-15 до 15)
+                (Math.random() - 0.5) * 20   // больший разброс по глубине (-10 до 10)
+            );
+            
+            voxel.position.copy(startPosition);
+            
+            // Направление к целевой позиции
+            const direction = new THREE.Vector3().subVectors(
+                voxel.userData.targetPosition,
+                startPosition
+            ).normalize();
+            
+            // Добавляем воксель в список летящих фрагментов
+            voxel.userData = {
+                ...voxel.userData,
+                velocity: direction.multiplyScalar(0.15 + Math.random() * 0.25), // в 2 раза быстрее
+                lifetime: 0,
+                maxLifetime: 2000, // ОЧЕНЬ долго живут чтобы точно достигли цели
+                isFlying: true,
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.05,
+                    y: (Math.random() - 0.5) * 0.05,
+                    z: (Math.random() - 0.5) * 0.05
+                }
+            };
+            
+            // Добавляем в сцену как отдельный объект
+            scene.add(voxel);
+            assemblyFragments.push(voxel);
+            
+            console.log(`💫 Воксель летит к цели от позиции:`, startPosition, 'к позиции:', voxel.userData.targetPosition);
+            
+        }, delay);
     }
     
     const animateAssemblyFragments = () => {
@@ -235,31 +287,65 @@ export function useThreeBackground() {
             const fragment = assemblyFragments[i];
             fragment.userData.lifetime++;
 
-            const direction = new THREE.Vector3().subVectors(
-                fragment.userData.targetPosition,
-                fragment.position
-            );
-            const speed = 0.03;
-            fragment.position.add(direction.multiplyScalar(speed));
+            // Движение с физикой - точно как при разборке, но к цели
+            if (fragment.userData.isFlying) {
+                // Направление к целевой позиции
+                const direction = new THREE.Vector3().subVectors(
+                    fragment.userData.targetPosition,
+                    fragment.position
+                );
+                
+                // Если близко к цели, замедляемся и прилипаем
+                const distance = direction.length();
+                if (distance < 0.5) {
+                    // Прилипаем к целевой позиции
+                    fragment.position.copy(fragment.userData.targetPosition);
+                    fragment.userData.velocity.set(0, 0, 0);
+                    fragment.userData.hasReachedTarget = true; // ПОМЕЧАЕМ что достиг цели
+                    console.log(`🎯 Воксель достиг цели! Расстояние: ${distance.toFixed(2)}`);
+                } else {
+                    // Летим к цели
+                    fragment.position.add(fragment.userData.velocity);
+                    
+                    // Корректируем направление к цели
+                    direction.normalize();
+                    fragment.userData.velocity.lerp(direction.multiplyScalar(0.2), 0.05); // быстрее коррекция
+                }
+                
+                // Легкое сопротивление воздуха
+                fragment.userData.velocity.multiplyScalar(0.995);
 
-            fragment.rotation.x += fragment.userData.rotationSpeed.x;
-            fragment.rotation.y += fragment.userData.rotationSpeed.y;
-            fragment.rotation.z += fragment.userData.rotationSpeed.z;
+                fragment.rotation.x += fragment.userData.rotationSpeed.x;
+                fragment.rotation.y += fragment.userData.rotationSpeed.y;
+                fragment.rotation.z += fragment.userData.rotationSpeed.z;
+            }
 
-            // Плавное появление фрагментов сборки
+            // Эффект появления как при разборке
             if(fragment.material instanceof THREE.MeshBasicMaterial) {
-                if (fragment.userData.lifetime < fragment.userData.appearDelay) {
-                    // Еще не время появляться
+                if (fragment.userData.isFlying) {
+                    const visibleProgress = fragment.userData.lifetime / fragment.userData.maxLifetime;
+                    
+                    // Плавное появление и затем постоянная видимость
+                    if (visibleProgress < 0.2) {
+                        fragment.material.opacity = Math.min(0.8, visibleProgress * 4 * 0.8); // появляемся первые 20%
+                    } else {
+                        fragment.material.opacity = 0.8; // потом стабильно видимы
+                    }
+                    
+                } else if (fragment.userData.lifetime < fragment.userData.appearDelay) {
+                    // Старая логика для фрагментов с задержкой появления
                     fragment.material.opacity = 0;
                 } else {
                     // Появились - плавно проявляемся
                     const visibleLifetime = fragment.userData.lifetime - fragment.userData.appearDelay;
                     const visibleProgress = visibleLifetime / (fragment.userData.maxLifetime - fragment.userData.appearDelay);
-                    fragment.material.opacity = Math.min(1.0, visibleProgress);
+                    fragment.material.opacity = Math.min(0.8, visibleProgress * 0.8);
                 }
             }
 
-            if(fragment.userData.lifetime >= fragment.userData.maxLifetime) {
+            // Удаляем разлетающиеся воксели по времени, но НЕ удаляем собирающиеся
+            if(fragment.userData.lifetime >= fragment.userData.maxLifetime && 
+               (!fragment.userData.isFlying || fragment.userData.isDisintegrating)) {
                 scene.remove(fragment);
                 assemblyFragments.splice(i, 1);
             }
@@ -499,6 +585,8 @@ const triggerTaskStatusChange = (task: any) => {
         
         const voxels = particle.userData.voxels as THREE.Mesh[];
         
+        // НЕ скрываем куб сразу - пусть разбирается постепенно
+        
         // Запускаем все воксели с большими задержками для медленного эффекта
         setTimeout(() => {
             voxels.forEach((voxel, index) => {
@@ -511,9 +599,19 @@ const triggerTaskStatusChange = (task: any) => {
 
     const makeVoxelFly = (voxel: THREE.Mesh, delay: number) => {
         setTimeout(() => {
+            // Сначала скрываем воксель в кубе (создаем эффект постепенной разборки)
+            if (voxel.material instanceof THREE.MeshBasicMaterial) {
+                voxel.material.opacity = 0; // делаем невидимым в кубе
+            }
+            
             // Получаем мировую позицию вокселя
             const worldPosition = new THREE.Vector3();
             voxel.getWorldPosition(worldPosition);
+            
+            // Создаем КОПИЮ вокселя для полёта
+            const flyingVoxel = voxel.clone();
+            flyingVoxel.material = (voxel.material as THREE.MeshBasicMaterial).clone();
+            (flyingVoxel.material as THREE.MeshBasicMaterial).opacity = 0.8; // копия видима
             
             // Основное направление - вверх и влево с небольшим разбросом
             const direction = new THREE.Vector3(
@@ -522,13 +620,13 @@ const triggerTaskStatusChange = (task: any) => {
                 (Math.random() - 0.5) * 0.4     // небольшой разброс по глубине
             ).normalize();
             
-            // Добавляем воксель в список летящих фрагментов
-            voxel.userData = {
-                ...voxel.userData,
+            // Добавляем КОПИЮ в список летящих фрагментов
+            flyingVoxel.userData = {
                 velocity: direction.multiplyScalar(0.08 + Math.random() * 0.12), // медленная скорость 0.08-0.20
                 lifetime: 0,
                 maxLifetime: 420, // дольше живут
                 isFlying: true,
+                isDisintegrating: true, // ПОМЕЧАЕМ что это разборка, не сборка
                 rotationSpeed: {
                     x: (Math.random() - 0.5) * 0.05, // медленнее вращаются
                     y: (Math.random() - 0.5) * 0.05,
@@ -536,19 +634,17 @@ const triggerTaskStatusChange = (task: any) => {
                 }
             };
             
-            // Удаляем из группы куба и добавляем в сцену как отдельный объект
-            const parent = voxel.parent!;
-            parent.remove(voxel);
-            voxel.position.copy(worldPosition);
-            scene.add(voxel);
-            distractionFragments.push(voxel);
+            // Добавляем копию в сцену как отдельный объект
+            flyingVoxel.position.copy(worldPosition);
+            scene.add(flyingVoxel);
+            distractionFragments.push(flyingVoxel);
             
             console.log(`💥 Воксель летит влево от позиции:`, worldPosition, 'с направлением:', direction);
             
         }, delay);
     }
 
-    const createVoxelCube = (task: any) => {
+    const createVoxelCube = (task: any, shouldStartFlying: boolean = false) => {
         // Создаем группу для всего куба
         const cubeGroup = new THREE.Group();
         const voxels: THREE.Mesh[] = [];
@@ -567,7 +663,7 @@ const triggerTaskStatusChange = (task: any) => {
                         color: baseColor,
                         wireframe: false,
                         transparent: true,
-                        opacity: 0.8
+                        opacity: shouldStartFlying ? 0 : 0.8
                     });
                     
                     const voxel = new THREE.Mesh(voxelGeometry, voxelMaterial);
@@ -577,9 +673,31 @@ const triggerTaskStatusChange = (task: any) => {
                     const localY = (y - voxelsPerSide/2 + 0.5) * voxelSize;
                     const localZ = (z - voxelsPerSide/2 + 0.5) * voxelSize;
                     
-                    voxel.position.set(localX, localY, localZ);
+                    if (shouldStartFlying) {
+                        // Воксели начинают далеко слева-сверху
+                        const startX = -30 + Math.random() * 10; // слева
+                        const startY = 20 + Math.random() * 10;  // сверху
+                        const startZ = (Math.random() - 0.5) * 5; // небольшой разброс по глубине
+                        
+                        voxel.position.set(startX, startY, startZ);
+                        
+                        // Сохраняем целевую позицию в кубе
+                        voxel.userData = {
+                            targetPosition: new THREE.Vector3(localX, localY, localZ),
+                            isAssembling: true,
+                            lifetime: 0,
+                            maxLifetime: 200,
+                            appearDelay: Math.random() * 80, // случайная задержка появления
+                        };
+                        
+                        // Добавляем в сцену как отдельный объект для анимации
+                        scene.add(voxel);
+                        assemblyFragments.push(voxel);
+                    } else {
+                        voxel.position.set(localX, localY, localZ);
+                        cubeGroup.add(voxel);
+                    }
                     
-                    cubeGroup.add(voxel);
                     voxels.push(voxel);
                 }
             }
@@ -592,26 +710,26 @@ const triggerTaskStatusChange = (task: any) => {
         // ДОБАВЛЯЕМ проверку
         if (!scene) return;
         
-        // Создаем воксельный куб
-        const { cubeGroup, voxels } = createVoxelCube(task);
+        // Определяем целевую позицию для куба (детерминированно)
+        const isLeftSide = index % 2 === 0  // чётные слева, нечётные справа
+        const verticalOffset = (index * 8) % 40 - 20  // распределяем по высоте
         
-        // Появляется ТОЛЬКО в боковых областях (слева или справа от todo окна)
-        const isLeftSide = Math.random() < 0.5
-        let startX, startY
+        let targetX, targetY
         
         if (isLeftSide) {
-            // Левая боковая область
-            startX = -50 - Math.random() * 20  // от -50 до -70
-            startY = (Math.random() - 0.5) * 40 // по всей высоте
+            targetX = -55 - (index * 3) % 15  // разные X для левой стороны
+            targetY = verticalOffset
         } else {
-            // Правая боковая область  
-            startX = 50 + Math.random() * 20   // от +50 до +70
-            startY = (Math.random() - 0.5) * 40 // по всей высоте
+            targetX = 55 + (index * 3) % 15   // разные X для правой стороны  
+            targetY = verticalOffset
         }
         
-        cubeGroup.position.set(startX, startY, (Math.random() - 0.5) * 10)
+        const targetPosition = new THREE.Vector3(targetX, targetY, (index * 2) % 10 - 5);
         
-        // Обычная случайная скорость
+        // Создаем пустую группу для финального куба
+        const cubeGroup = new THREE.Group();
+        cubeGroup.position.copy(targetPosition);
+        
         cubeGroup.userData = {
             taskId: task.id,
             targetColor: task.completed ? taskParticleColors[currentTheme.value].completed : taskParticleColors[currentTheme.value].active,
@@ -624,22 +742,54 @@ const triggerTaskStatusChange = (task: any) => {
                 x: Math.random() * 0.015,
                 y: Math.random() * 0.015
             },
-            voxels: voxels // сохраняем ссылки на воксели
+            voxels: [] // пока пустой, заполнится после сборки
         }
         
-        scene.add(cubeGroup)
-        taskParticles.push(cubeGroup as any)
-
-        // Скрываем новую частицу до завершения эффекта сборки
-        cubeGroup.visible = false;
+        cubeGroup.visible = false; // скрыт пока воксели летят
+        scene.add(cubeGroup);
+        taskParticles.push(cubeGroup as any);
         
-        // Запускаем эффект сборки сразу
-        createAssemblyEffect(cubeGroup.position, task);
+        // Запускаем воксельную сборку
+        const assemblingVoxels = startVoxelAssembly(targetPosition, task);
         
-        // Показываем частицу через 1800ms после начала эффекта
-        setTimeout(() => {
-            cubeGroup.visible = true;
-        }, 1800);
+        // Проверяем завершение сборки каждые 100ms
+        const checkAssemblyComplete = () => {
+            // Проверяем сколько вокселей от этой задачи достигли цели
+            const reachedTargetCount = assemblingVoxels.filter(voxel => 
+                voxel.userData && voxel.userData.hasReachedTarget === true
+            ).length;
+            
+            const totalVoxelsCount = assemblingVoxels.length;
+            
+            console.log(`🔍 Задача ${task.id}: ${reachedTargetCount}/${totalVoxelsCount} вокселей достигли цели`);
+            
+            if (reachedTargetCount === totalVoxelsCount && totalVoxelsCount > 0) {
+                // ВСЕ воксели достигли своих целей - создаем финальный куб
+                console.log(`🎯 ВСЕ воксели для задачи ${task.id} достигли целей!`);
+                
+                // Убираем все воксели сборки
+                assemblingVoxels.forEach(voxel => {
+                    scene.remove(voxel);
+                    const fragmentIndex = assemblyFragments.indexOf(voxel);
+                    if (fragmentIndex > -1) assemblyFragments.splice(fragmentIndex, 1);
+                });
+                
+                // Создаем финальный воксельный куб
+                const { cubeGroup: finalCube, voxels: finalVoxels } = createVoxelCube(task, false);
+                finalVoxels.forEach(voxel => cubeGroup.add(voxel));
+                
+                cubeGroup.userData.voxels = finalVoxels;
+                cubeGroup.visible = true;
+                
+                console.log(`✅ Воксели собрались в куб для задачи ${task.id}`);
+            } else {
+                // Ещё не все воксели достигли целей - проверяем снова через 100ms
+                setTimeout(checkAssemblyComplete, 100);
+            }
+        };
+        
+        // Начинаем проверку через 1 секунду (чтобы воксели успели появиться)
+        setTimeout(checkAssemblyComplete, 1000);
     }
 
     const createBackgroundParticles = () => {
@@ -709,9 +859,6 @@ const triggerTaskStatusChange = (task: any) => {
         
         // Создаём по частице на каждую задачу
         taskStore.tasks.forEach((task, index) => {  
-            // Создаем воксельный куб
-            const { cubeGroup, voxels } = createVoxelCube(task);
-            
             // ДЕТЕРМИНИРОВАННОЕ позиционирование на основе индекса
             const isLeftSide = index % 2 === 0  // чётные слева, нечётные справа
             const verticalOffset = (index * 8) % 40 - 20  // распределяем по высоте
@@ -726,6 +873,8 @@ const triggerTaskStatusChange = (task: any) => {
                 startY = verticalOffset
             }
             
+            // Создаем пустую группу для финального куба (как в addSingleTaskParticle)
+            const cubeGroup = new THREE.Group();
             cubeGroup.position.set(startX, startY, (index * 2) % 10 - 5)  // разные Z
             
             cubeGroup.userData = {
@@ -740,7 +889,7 @@ const triggerTaskStatusChange = (task: any) => {
                     x: Math.random() * 0.015,
                     y: Math.random() * 0.015
                 },
-                voxels: voxels // сохраняем ссылки на воксели
+                voxels: [] // пока пустой, заполнится после сборки
             }
             
             // Изначально частица невидима до завершения эффекта сборки
@@ -749,13 +898,45 @@ const triggerTaskStatusChange = (task: any) => {
             scene.add(cubeGroup)
             taskParticles.push(cubeGroup as any)
             
-            // Запускаем эффект сборки сразу для всех частиц
-            createAssemblyEffect(cubeGroup.position, task);
+            // Запускаем воксельную сборку
+            const assemblingVoxels = startVoxelAssembly(cubeGroup.position, task);
             
-            // Показываем частицу через 1800ms после начала эффекта
-            setTimeout(() => {
-                cubeGroup.visible = true;
-            }, 1800);
+            // Проверяем завершение сборки каждые 100ms
+            const checkAssemblyComplete = () => {
+                // Проверяем сколько вокселей от этой задачи достигли цели
+                const reachedTargetCount = assemblingVoxels.filter(voxel => 
+                    voxel.userData && voxel.userData.hasReachedTarget === true
+                ).length;
+                
+                const totalVoxelsCount = assemblingVoxels.length;
+                
+                if (reachedTargetCount === totalVoxelsCount && totalVoxelsCount > 0) {
+                    // ВСЕ воксели достигли своих целей - создаем финальный куб
+                    console.log(`🎯 ВСЕ воксели для задачи ${task.id} достигли целей! (createTaskParticles)`);
+                    
+                    // Убираем все воксели сборки
+                    assemblingVoxels.forEach(voxel => {
+                        scene.remove(voxel);
+                        const fragmentIndex = assemblyFragments.indexOf(voxel);
+                        if (fragmentIndex > -1) assemblyFragments.splice(fragmentIndex, 1);
+                    });
+                    
+                    // Создаем финальный воксельный куб
+                    const { cubeGroup: finalCube, voxels: finalVoxels } = createVoxelCube(task, false);
+                    finalVoxels.forEach(voxel => cubeGroup.add(voxel));
+                    
+                    cubeGroup.userData.voxels = finalVoxels;
+                    cubeGroup.visible = true;
+                    
+                    console.log(`✅ Воксели собрались в куб для задачи ${task.id} (createTaskParticles)`);
+                } else {
+                    // Ещё не все воксели достигли целей - проверяем снова через 100ms
+                    setTimeout(checkAssemblyComplete, 100);
+                }
+            };
+            
+            // Начинаем проверку через 1 секунду (чтобы воксели успели появиться)
+            setTimeout(checkAssemblyComplete, 1000);
             
             console.log(`Создана воксельная частица для задачи ${task.id}: "${task.title}" (${task.completed ? 'завершена' : 'активна'})`);
         })
@@ -1021,7 +1202,7 @@ const triggerTaskStatusChange = (task: any) => {
         themes,
         updateTaskListBounds,
         createDistractionEffect,
-        createAssemblyEffect,
+        startVoxelAssembly,
         triggerTaskCreation,
         triggerTaskDeletion,
         triggerTaskStatusChange
