@@ -2,7 +2,19 @@
 import ThreeBackground from './components/ThreeBackground.vue';
 import { useThemeColors } from './composables/useThemeColors';
 
+
 const { currentTheme, themes } = useThemeColors();
+
+// Функция для определения типа анимации перехода
+const getTransitionName = (route: any) => {
+  // Можно добавить разные анимации для разных роутов
+  if (route.path === '/') {
+    return 'slide-left'; // Главная страница "выезжает" слева
+  } else if (route.path === '/about') {
+    return 'slide-right'; // About страница "выезжает" справа
+  }
+  return 'fade'; // Базовая анимация по умолчанию
+};
 </script>
 
 <template>
@@ -20,7 +32,11 @@ const { currentTheme, themes } = useThemeColors();
 
     <main>
       <ThreeBackground />
-      <router-view></router-view>
+      <router-view v-slot="{ Component, route }">
+        <transition :name="getTransitionName(route)" mode="out-in">
+          <component :is="Component" :key="route.path" />
+        </transition>
+      </router-view>
     </main>
 
     <footer :style="{ backgroundColor: themes[currentTheme].secondary }">
@@ -38,6 +54,7 @@ body {
   padding: 0;
   color: #2c3e50;
   transition: all 0.3s ease; /* ПЛАВНЫЕ ПЕРЕХОДЫ */
+  overflow-x: hidden; /* ПРЕДОТВРАЩАЕМ ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ */
 }
 
 .app {
@@ -79,6 +96,7 @@ main {
   flex-grow: 1;
   padding: 20px;
   transition: all 0.3s ease; /* ПЛАВНЫЕ ПЕРЕХОДЫ */
+  position: relative; /* ДЛЯ ПРАВИЛЬНОГО ПОЗИЦИОНИРОВАНИЯ АНИМАЦИЙ */
 }
 
 footer {
@@ -87,5 +105,41 @@ footer {
   color: white;
   font-size: 0.8rem;
   transition: all 0.3s ease; /* ПЛАВНЫЕ ПЕРЕХОДЫ */
+}
+
+/* === АНИМАЦИИ ПЕРЕХОДОВ РОУТОВ === */
+
+/* Базовая fade анимация */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.4s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
+/* Анимация слайда слева (для главной страницы) */
+.slide-left-enter-active, .slide-left-leave-active {
+  transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.slide-left-enter-from {
+  transform: translateX(-30px);
+  opacity: 0;
+}
+.slide-left-leave-to {
+  transform: translateX(30px);
+  opacity: 0;
+}
+
+/* Анимация слайда справа (для About страницы) */
+.slide-right-enter-active, .slide-right-leave-active {
+  transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.slide-right-enter-from {
+  transform: translateX(30px);
+  opacity: 0;
+}
+.slide-right-leave-to {
+  transform: translateX(-30px);
+  opacity: 0;
 }
 </style>
